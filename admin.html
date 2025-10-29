@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin - Scheduled Appointments</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Basic password prompt protection
+  const password = prompt("Enter admin password:");
+  if (password !== "admin123") {
+    document.body.innerHTML = "<h1 class='text-center mt-10 text-3xl'>Access Denied</h1>";
+  }
+</script>
+</head>
+<body class="bg-white font-sans p-4">
+<h1 class="text-center text-3xl mb-6">Scheduled Appointments</h1>
+<div id="appointments" class="max-w-4xl mx-auto bg-gray-50 p-4 rounded shadow-lg"></div>
+<script>
+  async function fetchAppointments() {
+    try {
+      const res = await fetch('/.netlify/functions/get-appointments');
+      if (!res.ok) throw new Error("Failed to fetch");
+      const appointments = await res.json();
+      displayAppointments(appointments);
+    } catch {
+      document.getElementById('appointments').innerHTML = "Error loading appointments.";
+    }
+  }
+
+  function displayAppointments(list) {
+    const container = document.getElementById('appointments');
+    if (!list.length) {
+      container.innerHTML = "<p>No appointments scheduled yet.</p>";
+      return;
+    }
+    const html = list.map(a => `
+      <div class="p-4 border-b border-gray-200">
+        <p><strong>Name:</strong> ${a.name}</p>
+        <p><strong>Car:</strong> ${a.car}</p>
+        <p><strong>Email:</strong> ${a.email}</p>
+        <p><strong>Phone:</strong> ${a.phone || 'N/A'}</p>
+        <p><strong>Scheduled Time:</strong> ${new Date(a.scheduledTime).toLocaleString()}</p>
+        <p><strong>Duration:</strong> ${a.estimatedDuration} minutes</p>
+        <p><strong>Message:</strong> ${a.message}</p>
+      </div>
+    `).join('');
+    container.innerHTML = html;
+  }
+
+  fetchAppointments();
+</script>
+</body>
+</html>
