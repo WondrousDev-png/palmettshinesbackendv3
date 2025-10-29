@@ -51,7 +51,6 @@ function findNextAvailableSlot(appointments, duration) {
     return new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute);
   }
 
-  // Next day
   let nextDay = new Date(day);
   nextDay.setDate(nextDay.getDate() + 1);
   return new Date(nextDay.getFullYear(), nextDay.getMonth(), nextDay.getDate(), 9, 0);
@@ -94,7 +93,6 @@ export async function handler(event) {
   let duration = estimateDuration(car);
   let scheduledTime = findNextAvailableSlot(appointments, duration);
 
-  // Save appointment
   const appointment = {
     id: Date.now(),
     name,
