@@ -6,9 +6,8 @@
 <title>Admin - Scheduled Appointments</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-  // Basic password protection
   const password = prompt("Enter admin password:");
-  if (password !== "admin123") {
+  if (password !== "cellosuite123") {
     document.body.innerHTML = "<h1 class='text-center mt-10 text-3xl'>Access Denied</h1>";
   }
 </script>
@@ -20,21 +19,20 @@
   async function fetchAppointments() {
     try {
       const res = await fetch('/.netlify/functions/get-appointments');
-      if (!res.ok) throw new Error("Failed to fetch");
+      if (!res.ok) throw new Error("Failed to fetch appointments");
       const appointments = await res.json();
       displayAppointments(appointments);
     } catch {
       document.getElementById('appointments').innerHTML = "Error loading appointments.";
     }
   }
-
   function displayAppointments(list) {
     const container = document.getElementById('appointments');
     if (!list.length) {
       container.innerHTML = "<p>No appointments scheduled yet.</p>";
       return;
     }
-    const html = list.map(a => `
+    container.innerHTML = list.map(a => `
       <div class="p-4 border-b border-gray-200">
         <p><strong>Name:</strong> ${a.name}</p>
         <p><strong>Car:</strong> ${a.car}</p>
@@ -45,9 +43,7 @@
         <p><strong>Message:</strong> ${a.message}</p>
       </div>
     `).join('');
-    container.innerHTML = html;
   }
-
   fetchAppointments();
 </script>
 </body>

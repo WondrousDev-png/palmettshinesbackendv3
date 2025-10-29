@@ -1,12 +1,11 @@
-// We export the same 'appointments' array for demo purposes; in real, this needs shared DB or KV store.
+// This must share appointment data source or use DB in production.
+// For demonstration, we create a simple importable appointments storage.
 
-import { Handler } from '@netlify/functions';
+let appointments = [];
 
-let appointments = []; // This should be external DB in production
-
-export const handler = async () => {
+export async function handler() {
   return {
     statusCode: 200,
     body: JSON.stringify(appointments),
   };
-};
+}
