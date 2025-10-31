@@ -1,3 +1,7 @@
+<!-- 
+  This entire file is designed to be copy-pasted into the 
+  Google Sites "Embed Code" feature. 
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,34 +20,6 @@
     input, select, textarea {
       font-size: 1rem;
       padding: 0.75rem 1rem;
-    }
-    /* Simple modal for success/error messages */
-    #message-box {
-      position: fixed;
-      top: 1.5rem;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 1rem 1.5rem;
-      border-radius: 0.5rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      font-weight: 600;
-      z-index: 100;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s, visibility 0.3s, top 0.3s;
-    }
-    #message-box.show {
-      opacity: 1;
-      visibility: visible;
-      top: 2.5rem;
-    }
-    #message-box.success {
-      background-color: #dcfce7; /* green-100 */
-      color: #166534; /* green-800 */
-    }
-    #message-box.error {
-      background-color: #fee2e2; /* red-100 */
-      color: #991b1b; /* red-800 */
     }
     @media (max-width: 640px) {
       input, select, textarea {
@@ -71,7 +47,19 @@
       Have a question or want to schedule a custom detail? Fill out the form below, and we'll get back to you!
     </p>
 
-    <form id="contact-form" class="space-y-6">
+    <!-- 
+      --- IMPORTANT ---
+      This form now uses a standard 'action' and 'method' to submit.
+      This is required to bypass the Google Sites sandbox.
+      
+      You MUST replace 'YOUR_RENDER_URL_HERE' with your actual Render URL.
+    -->
+    <form 
+      id="contact-form" 
+      class="space-y-6" 
+      method="POST" 
+      action="https://palmettshinesbackendv3.onrender.com/api/schedule"
+    >
       <div>
         <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
         <input type="text" id="name" name="name" required placeholder="John Doe" class="form-input block w-full rounded-lg border-gray-300 shadow-sm" />
@@ -135,15 +123,17 @@
   <h2 class="text-3xl md:text-4xl font-bold text-gray-900">Ready for a Car That Impresses?</h2>
   <p class="mt-4 text-lg text-gray-600">Your vehicle deserves the best. Contact us today for a free, no-obligation quote tailored to your car's specific needs.</p>
   <div class="mt-10">
-    <a href="https://www.palmettoshines.com/services" target="_blank" rel="noopener noreferrer" class="inline-block bg-orange-500 text-white font-semibold py-3 px-8 rounded-full hover:bg-orange-600 focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 text-lg">
+    <a href="https://www.palmettoshines.com/instant-quote" target="_blank" rel="noopener noreferrer" class="inline-block bg-orange-500 text-white font-semibold py-3 px-8 rounded-full hover:bg-orange-600 focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 text-lg">
       Get A Quote
     </a>
   </div>
 </section>
 
-<!-- NEW: Message box for success/error -->
-<div id="message-box"></div>
-
+<!-- 
+  The 'fetch' script is gone. This simple script ONLY handles
+  showing and hiding the 'availability' field, which is
+  allowed by the Google Sites sandbox.
+-->
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const subjectSelect = document.getElementById('subject');
@@ -160,84 +150,9 @@
         availabilityInput.value = '';
       }
     });
-
-    // --- NEW Message Box Function ---
-    const messageBox = document.getElementById('message-box');
-    let messageTimer;
-    
-    function showMessage(message, type = 'success') {
-      clearTimeout(messageTimer); // Clear any existing timer
-      messageBox.textContent = message;
-      messageBox.className = type; // 'success' or 'error'
-      messageBox.classList.add('show');
-      
-      // Hide after 5 seconds
-      messageTimer = setTimeout(() => {
-        messageBox.classList.remove('show');
-      }, 5000);
-    }
-
-    // --- NEW Form Submission Logic ---
-    const form = document.getElementById('contact-form');
-    const submitButton = document.getElementById('submit-button');
-
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      
-      // --- ⚠️ IMPORTANT ⚠️ ---
-      // --- Replace this with your *actual* Render URL ---
-      const API_ENDPOINT = 'https://palmettshinesbackendv3.onrender.com/api/schedule';
-      // Example: 'https://palmetto-shine.onrender.com/api/schedule'
-      // --- -------------------------------------------- ---
-
-      if (API_ENDPOINT.includes('YOUR_RENDER_URL_HERE')) {
-        showMessage('Error: API endpoint is not configured in customer.html.', 'error');
-        return;
-      }
-
-      submitButton.disabled = true;
-      submitButton.textContent = 'Sending...';
-
-      const data = {
-        name: form.name.value,
-        email: form.email.value,
-        phone: form.phone.value,
-        car: form.car.value,
-        subject: form.subject.value,
-        availability: form.availability.value,
-        message: form.message.value
-      };
-
-      try {
-        const response = await fetch(API_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          // Use the error message from the server
-          throw new Error(result.message || 'Unknown server error');
-        }
-
-        showMessage(result.message, 'success');
-        form.reset();
-        // Manually hide availability container if it was open
-        availabilityContainer.classList.add('hidden');
-        availabilityInput.required = false;
-
-      } catch (error) {
-        showMessage('Error: ' + error.message, 'error');
-      } finally {
-        // Re-enable the button
-        submitButton.disabled = false;
-        submitButton.textContent = 'Send Message';
-      }
-    });
   });
 </script>
 
 </body>
 </html>
+

@@ -11,7 +11,7 @@ const getAppointments = async () => {
     return JSON.parse(data);
   } catch (error) {
     if (error.code === 'ENOENT') {
-      return []; // Return empty array if file doesn't exist
+      return []; 
     }
     throw error;
   }
@@ -31,18 +31,85 @@ const getEstimatedTime = (carType) => {
   }
 };
 
+// --- NEW HTML Response Functions ---
+// This is the "Thank You" page the user will see in the iframe
+const createSuccessHtml = (name) => {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+      <style>
+        body { 
+          font-family: 'Inter', sans-serif; 
+          background-color: #f3f4f6; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          height: 100vh; 
+          margin: 0;
+          text-align: center;
+        }
+        .container {
+          padding: 2rem;
+          background-color: white;
+          border-radius: 0.5rem;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 { color: #166534; }
+        p { color: #374151; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>Thank You, ${name}!</h1>
+        <p>Your request has been submitted successfully.</p>
+        <p>We will get back to you as soon as possible!</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// This is the error page
+const createErrorHtml = (message) => {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+      <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+        .container { padding: 2rem; background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { color: #991b1b; }
+        p { color: #374151; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>Error</h1>
+        <p>Something went wrong. Please try again.</p>
+        <p style="font-size: 0.8rem; color: #6b7280;">Details: ${message}</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
 // --- Exported Route Handlers ---
 
 /**
  * PUBLIC - POST /api/schedule
- * Receives a new appointment from the customer.html form.
+ * Receives data from the Google Sites form.
  */
 exports.submitAppointment = async (req, res) => {
   try {
-    const { name, email, phone, car, subject, availability, message } = req.body;
+    const { name, email, car, subject, phone, availability, message } = req.body;
 
     if (!name || !email || !car || !subject) {
-      return res.status(400).json({ message: 'Missing required fields' });
+      return res.status(400).send(createErrorHtml('Missing required fields'));
     }
 
     const appointments = await getAppointments();
@@ -52,11 +119,11 @@ exports.submitAppointment = async (req, res) => {
       receivedAt: new Date().toISOString(),
       name,
       email,
-      phone,
+      phone: phone || 'N/A',
       car,
       subject,
       availability: availability || 'N/A',
-      message,
+      message: message || 'N/A',
       estimatedTime: getEstimatedTime(car),
       status: 'Pending',
       confirmedDate: null,
@@ -65,10 +132,13 @@ exports.submitAppointment = async (req, res) => {
     appointments.push(newAppointment);
     await saveAppointments(appointments);
 
-    res.status(201).json({ message: 'Your request has been submitted successfully!' });
+    // --- IMPORTANT ---
+    // Send the HTML success page back to the iframe
+    res.status(201).send(createSuccessHtml(name));
+
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error. Please try again later.' });
+    res.status(500).send(createErrorHtml('Server error. Please try again later.'));
   }
 };
 
@@ -122,3 +192,4 @@ exports.confirmAppointment = async (req, res) => {
     res.status(500).json({ message: 'Server error while confirming.' });
   }
 };
+

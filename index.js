@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 
 // --- Security & Middleware ---
 
-// 1. CORS: Allow all websites to access your API (for customer.html)
+// 1. CORS: Allow all websites to access your API
 app.use(cors());
 
 // 2. Rate Limiting: Basic DDoS protection
@@ -23,12 +23,14 @@ const apiLimiter = rateLimit({
 // 3. Admin Password Protection
 const adminAuth = basicAuth({
   users: { 'admin': 'cellosuite123' }, // User: admin, Pass: cellosuite123
-  challenge: true, // This pops up the native browser login dialog
+  challenge: true,
   unauthorizedResponse: 'Unauthorized Access',
 });
 
-// 4. Body Parser
-app.use(express.json());
+// 4. Body Parsers
+app.use(express.json()); // For API requests (if you use fetch elsewhere)
+// --- NEW --- This is required for the Google Sites form submission
+app.use(express.urlencoded({ extended: true })); 
 
 // 5. Static Files (for customer.html)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -42,7 +44,6 @@ app.get('/', (req, res) => {
 });
 
 // 2. Admin Panel HTML Route (Protected)
-// Users must enter the password to see this page
 app.get('/admin', adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'admin.html'));
 });
