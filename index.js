@@ -1,33 +1,62 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const scheduleRoutes = require('./api/schedule');
+const cors = require('cors');
+const basicAuth = require('express-basic-auth');
+const scheduleApi = require('./api/schedule');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🛡️ Rate Limiting: Basic DDoS protection
-// This allows 100 requests per 15 minutes from a single IP.
-const limiter = rateLimit({
+// --- Security & Middleware ---
+
+// 1. CORS: Allow all websites to access your API (for customer.html)
+app.use(cors());
+
+// 2. Rate Limiting: Basic DDoS protection
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 100, 
   message: 'Too many requests from this IP, please try again after 15 minutes',
 });
 
-// Apply the rate limiter to all API requests
-app.use('/api/', limiter);
+// 3. Admin Password Protection
+const adminAuth = basicAuth({
+  users: { 'admin': 'cellosuite123' }, // User: admin, Pass: cellosuite123
+  challenge: true, // This pops up the native browser login dialog
+  unauthorizedResponse: 'Unauthorized Access',
+});
 
-// Middleware to parse JSON bodies (from your form)
+// 4. Body Parser
 app.use(express.json());
 
-// Serve static files (admin.html and customer.html)
-// This serves public/index.html at the root URL (/)
+// 5. Static Files (for customer.html)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Use your API routes
-app.use('/api/schedule', scheduleRoutes);
 
-// Start the server
+// --- Routes ---
+
+// 1. Root: Redirects to the customer form
+app.get('/', (req, res) => {
+  res.redirect('/customer.html');
+});
+
+// 2. Admin Panel HTML Route (Protected)
+// Users must enter the password to see this page
+app.get('/admin', adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'admin.html'));
+});
+
+// 3. API Routes
+// PUBLIC: Customer can submit a form (rate-limited)
+app.post('/api/schedule', apiLimiter, scheduleApi.submitAppointment);
+
+// PROTECTED: Admin-only routes (password-protected)
+app.get('/api/schedule', adminAuth, scheduleApi.getAppointments);
+app.post('/api/schedule/confirm/:id', adminAuth, scheduleApi.confirmAppointment);
+
+
+// --- Start Server ---
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

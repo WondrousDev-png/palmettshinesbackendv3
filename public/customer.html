@@ -1,4 +1,3 @@
-<!-- customer.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,6 +16,34 @@
     input, select, textarea {
       font-size: 1rem;
       padding: 0.75rem 1rem;
+    }
+    /* Simple modal for success/error messages */
+    #message-box {
+      position: fixed;
+      top: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 1rem 1.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      font-weight: 600;
+      z-index: 100;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s, top 0.3s;
+    }
+    #message-box.show {
+      opacity: 1;
+      visibility: visible;
+      top: 2.5rem;
+    }
+    #message-box.success {
+      background-color: #dcfce7; /* green-100 */
+      color: #166534; /* green-800 */
+    }
+    #message-box.error {
+      background-color: #fee2e2; /* red-100 */
+      color: #991b1b; /* red-800 */
     }
     @media (max-width: 640px) {
       input, select, textarea {
@@ -96,7 +123,7 @@
       </div>
 
       <div>
-        <button type="submit" class="w-full bg-[#f97316] text-white font-bold py-3 px-5 rounded-lg text-lg hover:bg-orange-600 transition duration-300 ease-in-out shadow-lg shadow-orange-400/30 active:scale-[0.98]">
+        <button type="submit" id="submit-button" class="w-full bg-[#f97316] text-white font-bold py-3 px-5 rounded-lg text-lg hover:bg-orange-600 transition duration-300 ease-in-out shadow-lg shadow-orange-400/30 active:scale-[0.98]">
           Send Message
         </button>
       </div>
@@ -113,6 +140,9 @@
     </a>
   </div>
 </section>
+
+<!-- NEW: Message box for success/error -->
+<div id="message-box"></div>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -131,9 +161,43 @@
       }
     });
 
+    // --- NEW Message Box Function ---
+    const messageBox = document.getElementById('message-box');
+    let messageTimer;
+    
+    function showMessage(message, type = 'success') {
+      clearTimeout(messageTimer); // Clear any existing timer
+      messageBox.textContent = message;
+      messageBox.className = type; // 'success' or 'error'
+      messageBox.classList.add('show');
+      
+      // Hide after 5 seconds
+      messageTimer = setTimeout(() => {
+        messageBox.classList.remove('show');
+      }, 5000);
+    }
+
+    // --- NEW Form Submission Logic ---
     const form = document.getElementById('contact-form');
+    const submitButton = document.getElementById('submit-button');
+
     form.addEventListener('submit', async e => {
       e.preventDefault();
+      
+      // --- ⚠️ IMPORTANT ⚠️ ---
+      // --- Replace this with your *actual* Render URL ---
+      const API_ENDPOINT = 'https://YOUR_RENDER_URL_HERE/api/schedule';
+      // Example: 'https://palmetto-shine.onrender.com/api/schedule'
+      // --- -------------------------------------------- ---
+
+      if (API_ENDPOINT.includes('YOUR_RENDER_URL_HERE')) {
+        showMessage('Error: API endpoint is not configured in customer.html.', 'error');
+        return;
+      }
+
+      submitButton.disabled = true;
+      submitButton.textContent = 'Sending...';
+
       const data = {
         name: form.name.value,
         email: form.email.value,
@@ -145,23 +209,31 @@
       };
 
       try {
-        const response = await fetch('/api/schedule', {
+        const response = await fetch(API_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
 
+        const result = await response.json();
+
         if (!response.ok) {
-          const error = await response.json();
-          alert('Error: ' + (error.message || 'Unknown error'));
-          return;
+          // Use the error message from the server
+          throw new Error(result.message || 'Unknown server error');
         }
 
-        const result = await response.json();
-        alert('Success! ' + result.message);
+        showMessage(result.message, 'success');
         form.reset();
-      } catch {
-        alert('Network error. Please try again later.');
+        // Manually hide availability container if it was open
+        availabilityContainer.classList.add('hidden');
+        availabilityInput.required = false;
+
+      } catch (error) {
+        showMessage('Error: ' + error.message, 'error');
+      } finally {
+        // Re-enable the button
+        submitButton.disabled = false;
+        submitButton.textContent = 'Send Message';
       }
     });
   });
