@@ -28,9 +28,8 @@ const adminAuth = basicAuth({
 });
 
 // 4. Body Parsers
-app.use(express.json()); // For API requests (if you use fetch elsewhere)
-// --- NEW --- This is required for the Google Sites form submission
-app.use(express.urlencoded({ extended: true })); 
+app.use(express.json()); // For API requests
+app.use(express.urlencoded({ extended: true })); // For Google Sites form
 
 // 5. Static Files (for customer.html)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -55,6 +54,9 @@ app.post('/api/schedule', apiLimiter, scheduleApi.submitAppointment);
 // PROTECTED: Admin-only routes (password-protected)
 app.get('/api/schedule', adminAuth, scheduleApi.getAppointments);
 app.post('/api/schedule/confirm/:id', adminAuth, scheduleApi.confirmAppointment);
+// --- NEW ADMIN ROUTES ---
+app.post('/api/schedule/assign/:id', adminAuth, scheduleApi.assignJob);
+app.delete('/api/schedule/:id', adminAuth, scheduleApi.deleteJob);
 
 
 // --- Start Server ---
