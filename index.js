@@ -36,9 +36,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Routes ---
 
-// 1. Root: Redirects to the customer form
+// 1. Root: Redirects to the admin login
 app.get('/', (req, res) => {
-  res.redirect('/customer.html');
+  res.redirect('/admin');
 });
 
 // 2. Admin Panel HTML Route (Protected)
@@ -60,3 +60,4 @@ app.post('/api/schedule/confirm/:id', adminAuth, scheduleApi.confirmAppointment)
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+
