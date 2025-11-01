@@ -37,11 +37,16 @@ const newCount = document.getElementById('new-count');
 const scheduleCount = document.getElementById('schedule-count');
 const questionCount = document.getElementById('question-count');
 
-// --- NEW: Modal Elements ---
+// --- Modal Elements ---
 const summaryModal = document.getElementById('day-summary-modal');
 const summaryDate = document.getElementById('day-summary-date');
 const summaryList = document.getElementById('day-summary-list');
 const modalCloseBtn = document.getElementById('modal-close-btn');
+
+// --- NEW: Today Summary Elements ---
+const todaySummaryContainer = document.getElementById('today-summary-container');
+const todaySummaryList = document.getElementById('today-summary-list');
+const todaySummaryEmpty = document.getElementById('today-summary-empty');
 
 
 // --- API Call Functions ---
@@ -128,8 +133,11 @@ async function confirmAppointment(id) {
 
 
 // --- Universal Card Rendering Function ---
-function renderAppointmentCard(appt, cardType) {
+function renderAppointmentCard(appt) {
   
+  // --- Determine Card Type ---
+  const isQuestionType = appt.subject === 'General Question' || appt.subject === 'Service Inquiry';
+
   // --- Block 1: Build Assignment HTML ---
   const options = team.map(name => {
     const isChecked = appt.assignedTo && appt.assignedTo.includes(name);
@@ -141,11 +149,12 @@ function renderAppointmentCard(appt, cardType) {
     `;
   }).join('');
   
-  const assignButtonText = (cardType === 'question') ? 'Assign & Confirm' : 'Save Assignments';
+  // --- UPDATED: Button text is clearer ---
+  const assignButtonText = (isQuestionType && appt.status === 'Pending') ? 'Assign & Confirm' : 'Save Assignments';
   
   const assignHtml = `
     <form id="assign-form-${appt.id}" class="space-y-2">
-      <p class="text-sm text-gray-600 mb-2">${(cardType === 'question') ? 'Assign to Respond:' : 'Assign team:'}</p>
+      <p class="text-sm text-gray-600 mb-2">${(isQuestionType) ? 'Assign to Respond:' : 'Assign team:'}</p>
       <div class="grid grid-cols-2 gap-2">${options}</div>
       <button type="button" onclick="assignJob('${appt.id}')" class="mt-2 w-full bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 transition text-sm">
         ${assignButtonText}
@@ -155,7 +164,6 @@ function renderAppointmentCard(appt, cardType) {
 
   // --- Block 2: Build Card-Specific HTML ---
   let statusColor, cardDetailsHtml, statusHtml, footerHtml;
-  const isQuestionType = cardType === 'question';
 
   if (isQuestionType && appt.status === 'Pending') {
     // --- This is a "Pending Question" card ---
@@ -176,7 +184,7 @@ function renderAppointmentCard(appt, cardType) {
     `;
 
   } else {
-    // --- This is a "Job" card (WIP, Confirmed, or Pending) ---
+    // --- This is a "Job" card (WIP, Confirmed, or Pending Job) ---
     // (This now also includes "Confirmed Questions")
     statusColor = 'bg-blue-100 text-blue-800'; // Pending
     if (appt.status === 'Confirmed') statusColor = 'bg-green-100 text-green-800';
@@ -207,7 +215,8 @@ function renderAppointmentCard(appt, cardType) {
       `;
     } else if (appt.status === 'Confirmed') {
       const friendlyDate = appt.confirmedDate ? new Date(appt.confirmedDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
-      const dateDisplay = isQuestionType ? '' : `<p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>`;
+      // Hide date if it's a question (since they don't have one)
+      const dateDisplay = (isQuestionType || !appt.confirmedDate) ? '' : `<p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>`;
       
       statusHtml = `
         ${dateDisplay}
@@ -272,6 +281,44 @@ function renderAppointmentCard(appt, cardType) {
   return card;
 }
 
+// --- NEW: Today's Summary Function ---
+function renderTodaySummary(appointments) {
+  const today = new Date().toDateString();
+  
+  const eventsForToday = appointments.filter(appt => {
+    if (!appt.confirmedDate) return false;
+    const eventDate = new Date(appt.confirmedDate);
+    return eventDate.toDateString() === today;
+  });
+
+  todaySummaryList.innerHTML = ''; // Clear old list
+  
+  if (eventsForToday.length === 0) {
+    todaySummaryEmpty.style.display = 'block';
+    todaySummaryContainer.style.display = 'block';
+  } else {
+    // Sort by time
+    eventsForToday.sort((a, b) => new Date(a.confirmedDate) - new Date(b.confirmedDate));
+    
+    eventsForToday.forEach(appt => {
+      const time = new Date(appt.confirmedDate).toLocaleString([], { timeStyle: 'short' });
+      const teamString = appt.assignedTo.length ? ` (${appt.assignedTo.join(', ')})` : '';
+      
+      const li = document.createElement('li');
+      li.className = "p-4 bg-white rounded-lg shadow-sm border";
+      li.innerHTML = `
+        <span class="font-semibold text-orange-600">${time}</span> - 
+        <span class="font-medium text-gray-800">${appt.name}${teamString}</span> - 
+        <span class="text-gray-600">${appt.car || appt.subject}</span>
+      `;
+      todaySummaryList.appendChild(li);
+    });
+    
+    todaySummaryEmpty.style.display = 'none';
+    todaySummaryContainer.style.display = 'block';
+  }
+}
+
 
 // --- Main Fetch and Render Function ---
 const fetchAppointments = async () => {
@@ -281,6 +328,7 @@ const fetchAppointments = async () => {
   confirmedList.innerHTML = '';
   scheduleList.innerHTML = '';
   questionList.innerHTML = '';
+  todaySummaryContainer.style.display = 'none'; // Hide today summary on load
   [wipEmpty, confirmedEmpty, scheduleEmpty, questionEmpty].forEach(el => el.style.display = 'none');
 
   try {
@@ -334,10 +382,13 @@ const fetchAppointments = async () => {
       }
     }
 
+    // --- NEW: 3.5. Render Today's Summary ---
+    renderTodaySummary(allAppointments);
+
     // 4. Render "Work in Progress" section
     wipCount.textContent = wipJobs.length;
     if (wipJobs.length > 0) {
-      wipJobs.forEach(appt => wipList.appendChild(renderAppointmentCard(appt, 'job')));
+      wipJobs.forEach(appt => wipList.appendChild(renderAppointmentCard(appt)));
     } else {
       wipEmpty.style.display = 'block';
     }
@@ -372,7 +423,7 @@ const fetchAppointments = async () => {
     // 8. Update "New Requests" main tab count
     newCount.textContent = scheduleJobs.length + questionJobs.length;
 
-    // 9. --- NEW: Render Calendar ---
+    // 9. Render Calendar
     if (calendar) {
       calendar.destroy(); 
     }
@@ -391,7 +442,6 @@ const fetchAppointments = async () => {
         minute: '2-digit',
         meridiem: 'short'
       },
-      // --- NEW: Date Click Handler ---
       dateClick: (arg) => {
         handleDateClick(arg.date);
       }
@@ -405,7 +455,7 @@ const fetchAppointments = async () => {
   }
 };
 
-// --- NEW: Calendar Day Click Handler ---
+// --- Calendar Day Click Handler ---
 function handleDateClick(date) {
   // 1. Set modal title
   summaryDate.textContent = date.toLocaleDateString([], { 
@@ -433,7 +483,7 @@ function handleDateClick(date) {
       const teamString = appt.assignedTo.length ? ` (${appt.assignedTo.join(', ')})` : '';
       
       const li = document.createElement('li');
-      li.innerHTML = `<strong>${time} - ${appt.name}${teamString}</strong>${appt.car} - ${appt.subject}`;
+      li.innerHTML = `<strong>${time} - ${appt.name}${teamString}</strong>${appt.car || appt.subject}`;
       summaryList.appendChild(li);
     });
   }
@@ -469,7 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchAppointments();
   refreshBtn.addEventListener('click', fetchAppointments);
 
-  // --- NEW: Modal close listeners ---
+  // --- Modal close listeners ---
   modalCloseBtn.addEventListener('click', () => summaryModal.close());
   summaryModal.addEventListener('click', (e) => {
     if (e.target === summaryModal) {
