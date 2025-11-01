@@ -80,7 +80,7 @@ async function updateStatus(id, newStatus) {
     if (!response.ok) throw new Error('Failed to update status');
     fetchAppointments();
   } catch (error) {
-    alert('Error: ' + error.message);
+    alert('Error: 'D' + error.message);
   }
 }
 
@@ -155,6 +155,7 @@ function renderAppointmentCard(appt) {
     `;
   }).join('');
   
+  // --- UPDATED: Button text is clearer ---
   const assignButtonText = (isQuestionType && appt.status === 'Pending') ? 'Assign & Confirm' : 'Save Assignments';
   
   const assignHtml = `
