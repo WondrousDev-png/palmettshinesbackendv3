@@ -2,32 +2,19 @@ const Redis = require('ioredis');
 
 let redis;
 
-// --- NEW DEBUGGING ---
-// Print all environment variables to see what Railway is providing
-console.log("--- App Starting ---");
-console.log("--- All Environment Variables ---");
-console.log(process.env);
-console.log("---------------------------------");
-// --- END DEBUGGING ---
-
-// --- NEW: Resilient Connection ---
-// --- !! FIX: Changed REDISPASSWORD to REDIS_PASSWORD !! ---
+// --- Resilient Connection ---
 if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDIS_PASSWORD) {
-  // If variables exist, connect to the real database.
   redis = new Redis({
     host: process.env.REDISHOST,
     port: process.env.REDISPORT,
-    // --- !! FIX: Changed REDISPASSWORD to REDIS_PASSWORD !! ---
     password: process.env.REDIS_PASSWORD,
     maxRetriesPerRequest: null
   });
   redis.on('connect', () => console.log('Connected to Redis database!'));
   redis.on('error', (err) => console.error('Redis Connection Error:', err));
 } else {
-  // --- This prevents the crash ---
   console.warn('--- REDIS ENV VARS NOT FOUND ---');
   console.warn('App is running in "mock" database mode.');
-  console.warn('Please add a Redis service in Railway to enable data saving.');
   
   let mockAppointments = [];
   redis = {
@@ -36,7 +23,7 @@ if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDIS_PASSWORD
       return JSON.stringify(mockAppointments);
     },
     set: async (key, value) => {
-      console.warn('Mock DB: "Saving" appointments (not really). Add Redis to save.');
+      console.warn('Mock DB: "Saving" appointments (not really).');
       mockAppointments = JSON.parse(value);
       return 'OK';
     },
@@ -116,21 +103,16 @@ const createErrorHtml = (message) => {
   `;
 };
 
-// --- Exported Route Handlers (No logic change needed) ---
+// --- Exported Route Handlers ---
 
 exports.submitAppointment = async (req, res) => {
-  // --- !! NEW LOGGING !! ---
   console.log('--- submitAppointment route HIT ---');
-  // This log will show us exactly what the form is sending.
   console.log('Received req.body:', JSON.stringify(req.body, null, 2));
-  // --- !! END NEW LOGGING !! ---
   try {
     const { name, email, car, subject, phone, availability, message } = req.body;
     if (!name || !email || !car || !subject) {
-      // --- !! NEW LOGGING !! ---
       console.warn('Validation FAILED. req.body did not contain required fields.');
       console.warn(`Name: ${name}, Email: ${email}, Car: ${car}, Subject: ${subject}`);
-      // --- !! END NEW LOGGING !! ---
       return res.status(400).send(createErrorHtml('Missing required fields.'));
     }
     const appointments = await getAppointments();
@@ -148,9 +130,7 @@ exports.submitAppointment = async (req, res) => {
     appointments.push(newAppointment);
     await saveAppointments(appointments);
     
-    // --- !! NEW LOGGING !! ---
     console.log('SUCCESS: Appointment saved. Sending Success HTML.');
-    // --- !! END NEW LOGGING !! ---
     res.status(201).send(createSuccessHtml(name));
   } catch (error) {
     console.error("Error in submitAppointment:", error);
@@ -158,10 +138,29 @@ exports.submitAppointment = async (req, res) => {
   }
 };
 
+/**
+ * PROTECTED - GET /api/schedule
+ * --- UPDATED --- Sorts jobs by status
+ */
 exports.getAppointments = async (req, res) => {
   try {
     const appointments = await getAppointments();
-    res.status(200).json(appointments.reverse()); 
+
+    // Sort the appointments
+    appointments.sort((a, b) => {
+      // 1. "Work in Progress" always comes first
+      if (a.status === 'Work in Progress' && b.status !== 'Work in Progress') {
+        return -1; // a comes first
+      }
+      if (a.status !== 'Work in Progress' && b.status === 'Work in Progress') {
+        return 1; // b comes first
+      }
+
+      // 2. For all other jobs, sort by newest (receivedAt)
+      return new Date(b.receivedAt) - new Date(a.receivedAt);
+    });
+
+    res.status(200).json(appointments); 
   } catch (error) {
     console.error("Error in getAppointments:", error);
     res.status(500).json({ message: 'Could not fetch appointments.' });
