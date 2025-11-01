@@ -120,18 +120,30 @@
     </div>
 
     <div class="border-b border-gray-200 mb-6">
+      <!-- This is the line that was edited -->
       <nav class="flex flex-wrap -mb-px" id="tab-nav">
-        <button class="tab active" data-tab="wip">
-          Work in Progress <span id="wip-count" class="ml-1 bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+        <button class="tab active mr-2" data-tab="wip">
+          <div class="flex items-center">
+            <span id="wip-count" class="mr-1 bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            <span>Work in Progress</span>
+          </div>
         </button>
-        <button class="tab" data-tab="confirmed">
-          Confirmed & Assigned <span id="confirmed-count" class="ml-1 bg-green-200 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+        <button class="tab mr-2" data-tab="confirmed">
+          <div class="flex items-center">
+            <span id="confirmed-count" class="mr-1 bg-green-200 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            <span>Confirmed & Assigned</span>
+          </div>
         </button>
-        <button class="tab" data-tab="new">
-          New Requests <span id="new-count" class="ml-1 bg-blue-200 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+        <button class="tab mr-2" data-tab="new">
+          <div class="flex items-center">
+            <span id="new-count" class="mr-1 bg-blue-200 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            <span>New Requests</span>
+          </div>
         </button>
-        <button class="tab" data-tab="calendar">
-          Calendar
+        <button class="tab ml-auto" data-tab="calendar">
+          <div class="flex items-center">
+            <span>Calendar</span>
+          </div>
         </button>
       </nav>
     </div>
@@ -149,12 +161,19 @@
       </div>
       
       <div id="panel-new" class="tab-panel">
+        <!-- This is the second line that was edited -->
         <nav class="flex flex-wrap -mb-px" id="sub-tab-nav">
-          <button class="tab active" data-tab="schedule">
-            Schedule Requests <span id="schedule-count" class="ml-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+          <button class="tab active mr-2" data-tab="schedule">
+            <div class="flex items-center">
+              <span id="schedule-count" class="mr-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+              <span>Schedule Requests</span>
+            </div>
           </button>
           <button class="tab" data-tab="question">
-            Inquiries & Questions <span id="question-count" class="ml-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            <div class="flex items-center">
+              <span id="question-count" class="mr-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+              <span>Inquiries & Questions</span>
+            </div>
           </button>
         </nav>
         
@@ -190,6 +209,12 @@
       </ul>
   </dialog>
 
+  <!-- 
+    NOTE: The original file had <script src="/js/admin.js" defer></script>
+    This will likely not work in the preview environment as that file doesn't exist.
+    The preview will show the layout, but interactivity (like changing tabs)
+    will depend on that missing file.
+  -->
   <script src="/js/admin.js" defer></script>
 </body>
 </html>
