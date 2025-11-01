@@ -3,6 +3,7 @@ const loading = document.getElementById('loading');
 const refreshBtn = document.getElementById('refresh-btn');
 const team = ['Charles', 'Kempson', 'Wilson', 'James'];
 let calendar; // To hold the FullCalendar instance
+let allAppointments = []; // Cache for calendar click summary
 
 // --- Main Tab Navigation ---
 const mainTabNav = document.getElementById('tab-nav');
@@ -35,6 +36,12 @@ const confirmedCount = document.getElementById('confirmed-count');
 const newCount = document.getElementById('new-count');
 const scheduleCount = document.getElementById('schedule-count');
 const questionCount = document.getElementById('question-count');
+
+// --- NEW: Modal Elements ---
+const summaryModal = document.getElementById('day-summary-modal');
+const summaryDate = document.getElementById('day-summary-date');
+const summaryList = document.getElementById('day-summary-list');
+const modalCloseBtn = document.getElementById('modal-close-btn');
 
 
 // --- API Call Functions ---
@@ -90,10 +97,6 @@ async function deleteJob(id, action) {
   }
 }
 
-/**
- * --- BUG FIX ---
- * This function now saves date AND assignments at the same time.
- */
 async function confirmAppointment(id) {
   const dateInput = document.getElementById(`date-input-${id}`);
   const confirmedDate = dateInput.value;
@@ -103,7 +106,6 @@ async function confirmAppointment(id) {
     return;
   }
 
-  // --- NEW: Read assignments from the same card ---
   const form = document.getElementById(`assign-form-${id}`);
   const checkboxes = form.querySelectorAll('input[type="checkbox"]:checked');
   const assignedTo = Array.from(checkboxes).map(cb => cb.value);
@@ -112,7 +114,6 @@ async function confirmAppointment(id) {
     const response = await fetch(`/api/schedule/confirm/${id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // --- NEW: Send both date and assignments ---
       body: JSON.stringify({ 
         confirmedDate: confirmedDate,
         assignedTo: assignedTo 
@@ -126,10 +127,7 @@ async function confirmAppointment(id) {
 }
 
 
-/**
- * --- HEAVILY UPDATED ---
- * This function now renders two types of cards: 'job' and 'question'
- */
+// --- Universal Card Rendering Function ---
 function renderAppointmentCard(appt, cardType) {
   
   // --- Block 1: Build Assignment HTML ---
@@ -143,8 +141,7 @@ function renderAppointmentCard(appt, cardType) {
     `;
   }).join('');
   
-  // Change button text based on card type
-  const assignButtonText = (cardType === 'question') ? 'Save Responders' : 'Save Assignments';
+  const assignButtonText = (cardType === 'question') ? 'Assign & Confirm' : 'Save Assignments';
   
   const assignHtml = `
     <form id="assign-form-${appt.id}" class="space-y-2">
@@ -158,12 +155,12 @@ function renderAppointmentCard(appt, cardType) {
 
   // --- Block 2: Build Card-Specific HTML ---
   let statusColor, cardDetailsHtml, statusHtml, footerHtml;
+  const isQuestionType = cardType === 'question';
 
-  if (cardType === 'question') {
-    // --- This is a "Question" card ---
-    statusColor = 'bg-blue-100 text-blue-800'; // Always "Pending"
+  if (isQuestionType && appt.status === 'Pending') {
+    // --- This is a "Pending Question" card ---
+    statusColor = 'bg-blue-100 text-blue-800';
     
-    // Simple details: Just contact and message
     cardDetailsHtml = `
       <div><strong class="text-gray-600 block">Contact:</strong><p>${appt.email}</p><p>${appt.phone}</p></div>
       <div class="bg-gray-50 p-4 rounded-md col-span-2">
@@ -171,15 +168,8 @@ function renderAppointmentCard(appt, cardType) {
         <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
       </div>
     `;
-    
-    // No status/confirm section needed
-    statusHtml = '';
-
-    // Simple footer: "Mark as Responded" and "Delete"
+    statusHtml = ''; // No confirm/status section
     footerHtml = `
-      <button onclick="deleteJob('${appt.id}', 'complete')" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition text-sm">
-        Mark as Responded
-      </button>
       <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
         Delete
       </button>
@@ -187,16 +177,17 @@ function renderAppointmentCard(appt, cardType) {
 
   } else {
     // --- This is a "Job" card (WIP, Confirmed, or Pending) ---
+    // (This now also includes "Confirmed Questions")
     statusColor = 'bg-blue-100 text-blue-800'; // Pending
     if (appt.status === 'Confirmed') statusColor = 'bg-green-100 text-green-800';
     else if (appt.status === 'Work in Progress') statusColor = 'bg-yellow-100 text-yellow-800';
 
-    // Full job details
+    // Build details. If it's a question, some fields will be blank.
     cardDetailsHtml = `
       <div><strong class="text-gray-600 block">Contact:</strong><p>${appt.email}</p><p>${appt.phone}</p></div>
-      <div><strong class="text-gray-600 block">Vehicle:</strong><p>${appt.car} (${appt.estimatedTime})</p></div>
+      ${!isQuestionType ? `<div><strong class="text-gray-600 block">Vehicle:</strong><p>${appt.car} (${appt.estimatedTime})</p></div>` : ''}
       <div><strong class="text-gray-600 block">Subject:</strong><p>${appt.subject}</p></div>
-      <div><strong class="text-gray-600 block">Availability:</strong><p>${appt.availability}</p></div>
+      ${!isQuestionType ? `<div><strong class="text-gray-600 block">Availability:</strong><p>${appt.availability}</p></div>` : ''}
       <div class="bg-gray-50 p-4 rounded-md col-span-2">
         <strong class="text-gray-600 block mb-1">Message:</strong>
         <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
@@ -215,9 +206,11 @@ function renderAppointmentCard(appt, cardType) {
         </div>
       `;
     } else if (appt.status === 'Confirmed') {
-      const friendlyDate = new Date(appt.confirmedDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      const friendlyDate = appt.confirmedDate ? new Date(appt.confirmedDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
+      const dateDisplay = isQuestionType ? '' : `<p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>`;
+      
       statusHtml = `
-        <p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>
+        ${dateDisplay}
         <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
           Start Work
         </button>
@@ -234,7 +227,7 @@ function renderAppointmentCard(appt, cardType) {
     // Full footer
     footerHtml = `
       <button onclick="deleteJob('${appt.id}', 'complete')" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition text-sm">
-        Mark as Completed
+        ${isQuestionType ? 'Mark as Responded' : 'Mark as Completed'}
       </button>
       <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
         Delete Job
@@ -280,7 +273,7 @@ function renderAppointmentCard(appt, cardType) {
 }
 
 
-// --- Main Fetch and Render Function (HEAVILY UPDATED) ---
+// --- Main Fetch and Render Function ---
 const fetchAppointments = async () => {
   // 1. Clear all lists and show loading
   loading.style.display = 'block';
@@ -299,8 +292,7 @@ const fetchAppointments = async () => {
     }
     if (!response.ok) throw new Error('Failed to fetch data');
     
-    // API already sorts by status priority
-    const appointments = await response.json();
+    allAppointments = await response.json(); // Save to global cache
     loading.style.display = 'none'; 
 
     // 2. Create local arrays for each category
@@ -308,10 +300,12 @@ const fetchAppointments = async () => {
     const confirmedJobs = [];
     const scheduleJobs = [];
     const questionJobs = [];
-    const calendarEvents = []; // For FullCalendar
+    const calendarEvents = [];
 
     // 3. Sort appointments into local arrays
-    for (const appt of appointments) {
+    for (const appt of allAppointments) {
+      const isQuestion = appt.subject === 'General Question' || appt.subject === 'Service Inquiry';
+
       switch (appt.status) {
         case 'Work in Progress':
           wipJobs.push(appt);
@@ -319,7 +313,6 @@ const fetchAppointments = async () => {
         case 'Confirmed':
           confirmedJobs.push(appt);
           if (appt.confirmedDate) {
-            // --- NEW: Calendar title includes time and team ---
             const calDate = new Date(appt.confirmedDate);
             const calTime = calDate.toLocaleString([], { timeStyle: 'short' });
             const teamString = appt.assignedTo.length ? ` (${appt.assignedTo.join(', ')})` : '';
@@ -332,10 +325,10 @@ const fetchAppointments = async () => {
           }
           break;
         case 'Pending':
-          if (appt.subject === 'Schedule Service' || appt.subject === 'Other') {
-            scheduleJobs.push(appt);
+          if (isQuestion) {
+            questionJobs.push(appt);
           } else {
-            questionJobs.push(appt); // 'General Question' & 'Service Inquiry'
+            scheduleJobs.push(appt); // 'Schedule Service' & 'Other'
           }
           break;
       }
@@ -352,7 +345,10 @@ const fetchAppointments = async () => {
     // 5. Render "Confirmed" section
     confirmedCount.textContent = confirmedJobs.length;
     if (confirmedJobs.length > 0) {
-      confirmedJobs.forEach(appt => confirmedList.appendChild(renderAppointmentCard(appt, 'job')));
+      confirmedJobs.forEach(appt => {
+        const isQuestion = appt.subject === 'General Question' || appt.subject === 'Service Inquiry';
+        confirmedList.appendChild(renderAppointmentCard(appt, isQuestion ? 'question' : 'job'));
+      });
     } else {
       confirmedEmpty.style.display = 'block';
     }
@@ -368,7 +364,6 @@ const fetchAppointments = async () => {
     // 7. Render "Question" sub-tab
     questionCount.textContent = questionJobs.length;
     if (questionJobs.length > 0) {
-      // --- NEW: Render as 'question' type ---
       questionJobs.forEach(appt => questionList.appendChild(renderAppointmentCard(appt, 'question')));
     } else {
       questionEmpty.style.display = 'block';
@@ -379,7 +374,7 @@ const fetchAppointments = async () => {
 
     // 9. --- NEW: Render Calendar ---
     if (calendar) {
-      calendar.destroy(); // Destroy old instance to prevent duplicates
+      calendar.destroy(); 
     }
     calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: 'dayGridMonth',
@@ -391,11 +386,14 @@ const fetchAppointments = async () => {
       events: calendarEvents,
       editable: false, 
       dayMaxEvents: true, 
-      // --- NEW: Show event time ---
       eventTimeFormat: {
         hour: 'numeric',
         minute: '2-digit',
         meridiem: 'short'
+      },
+      // --- NEW: Date Click Handler ---
+      dateClick: (arg) => {
+        handleDateClick(arg.date);
       }
     });
     calendar.render();
@@ -407,20 +405,53 @@ const fetchAppointments = async () => {
   }
 };
 
-// --- Tab Switching Logic (Updated) ---
+// --- NEW: Calendar Day Click Handler ---
+function handleDateClick(date) {
+  // 1. Set modal title
+  summaryDate.textContent = date.toLocaleDateString([], { 
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+  });
+
+  // 2. Filter all appointments for the clicked day
+  const eventsForDay = allAppointments.filter(appt => {
+    if (!appt.confirmedDate) return false;
+    const eventDate = new Date(appt.confirmedDate);
+    // Compare dates by ignoring the time
+    return eventDate.toDateString() === date.toDateString();
+  });
+
+  // 3. Populate the modal list
+  summaryList.innerHTML = ''; // Clear old list
+  if (eventsForDay.length === 0) {
+    summaryList.innerHTML = '<li>No scheduled jobs for this day.</li>';
+  } else {
+    // Sort by time
+    eventsForDay.sort((a, b) => new Date(a.confirmedDate) - new Date(b.confirmedDate));
+    
+    eventsForDay.forEach(appt => {
+      const time = new Date(appt.confirmedDate).toLocaleString([], { timeStyle: 'short' });
+      const teamString = appt.assignedTo.length ? ` (${appt.assignedTo.join(', ')})` : '';
+      
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>${time} - ${appt.name}${teamString}</strong>${appt.car} - ${appt.subject}`;
+      summaryList.appendChild(li);
+    });
+  }
+
+  // 4. Show the modal
+  summaryModal.showModal();
+}
+
+// --- Tab Switching Logic ---
 function setupTabSwitcher(nav, panels) {
   nav.addEventListener('click', (e) => {
     const clickedTab = e.target.closest('.tab');
     if (!clickedTab) return;
 
-    // 1. Deactivate all tabs and panels in this group
     nav.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
     panels.forEach(panel => panel.classList.remove('active'));
-
-    // 2. Activate the clicked tab
     clickedTab.classList.add('active');
     
-    // 3. Activate the corresponding panel
     const tabName = clickedTab.dataset.tab;
     const panel = document.getElementById(`panel-${tabName}`);
     panel.classList.add('active');
@@ -431,10 +462,18 @@ function setupTabSwitcher(nav, panels) {
   });
 }
 
-// --- Initial Load ---
+// --- Initial Load & Modal Listeners ---
 document.addEventListener('DOMContentLoaded', () => {
   setupTabSwitcher(mainTabNav, mainPanels);
   setupTabSwitcher(subTabNav, subPanels);
   fetchAppointments();
   refreshBtn.addEventListener('click', fetchAppointments);
+
+  // --- NEW: Modal close listeners ---
+  modalCloseBtn.addEventListener('click', () => summaryModal.close());
+  summaryModal.addEventListener('click', (e) => {
+    if (e.target === summaryModal) {
+      summaryModal.close();
+    }
+  });
 });

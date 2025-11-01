@@ -36,7 +36,6 @@
       box-shadow: 0 0 0 2px #fde6d5;
       outline: none;
     }
-    /* --- NEW Tab Styles --- */
     .tab {
       @apply py-3 px-5 font-semibold text-gray-600 border-b-2 border-transparent cursor-pointer transition-all;
     }
@@ -46,7 +45,6 @@
     .tab.active {
       @apply text-orange-600 border-orange-600;
     }
-    /* --- NEW Tab Panel Styles --- */
     .tab-panel {
       display: none; /* Hidden by default */
     }
@@ -54,7 +52,6 @@
       display: block; /* Shown by JS */
     }
     
-    /* --- NEW: FullCalendar Styles --- */
     #calendar {
       background-color: white;
       padding: 1.5rem;
@@ -64,9 +61,34 @@
     .fc-event {
       background-color: #f97316 !important;
       border-color: #f97316 !important;
+      color: white !important;
+      padding: 2px 4px;
     }
     .fc-day-today {
       background-color: #fff7ed !important;
+    }
+    
+    /* --- NEW: Modal Styles --- */
+    dialog {
+      @apply p-6 bg-white rounded-lg shadow-xl w-full max-w-lg;
+    }
+    dialog::backdrop {
+      @apply bg-black/50 backdrop-blur-sm;
+    }
+    .modal-title {
+      @apply text-xl font-semibold text-gray-800 mb-2;
+    }
+    .modal-subtitle {
+      @apply text-sm text-gray-500 mb-4;
+    }
+    .modal-list {
+      @apply list-none m-0 p-0 space-y-3;
+    }
+    .modal-list li {
+      @apply p-3 bg-gray-50 rounded-md text-gray-700;
+    }
+    .modal-list li strong {
+      @apply block text-sm text-gray-500;
     }
   </style>
 </head>
@@ -109,14 +131,12 @@
     <div id="tab-content">
       
       <div id="panel-wip" class="tab-panel active">
-        <div id="wip-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          </div>
+        <div id="wip-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         <p id="wip-empty" class="text-gray-600 text-center py-6 hidden">No jobs are currently in progress.</p>
       </div>
 
       <div id="panel-confirmed" class="tab-panel">
-        <div id="confirmed-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          </div>
+        <div id="confirmed-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         <p id="confirmed-empty" class="text-gray-600 text-center py-6 hidden">No confirmed jobs.</p>
       </div>
       
@@ -132,13 +152,11 @@
         
         <div id="sub-tab-content">
           <div id="panel-schedule" class="tab-panel active">
-            <div id="schedule-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              </div>
+            <div id="schedule-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             <p id="schedule-empty" class="text-gray-600 text-center py-6 hidden">No pending schedule requests.</p>
           </div>
           <div id="panel-question" class="tab-panel">
-            <div id="question-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              </div>
+            <div id="question-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             <p id="question-empty" class="text-gray-600 text-center py-6 hidden">No new inquiries or questions.</p>
           </div>
         </div>
@@ -151,6 +169,18 @@
 
     </div>
   </div>
+
+  <dialog id="day-summary-modal">
+    <div class="flex justify-between items-center">
+      <div>
+        <h2 class="modal-title">Job Summary</h2>
+        <p id="day-summary-date" class="modal-subtitle">Date</p>
+      </div>
+      <button id="modal-close-btn" class="text-gray-400 hover:text-gray-700 text-2xl">&times;</button>
+    </div>
+    <ul id="day-summary-list" class="modal-list">
+      </ul>
+  </dialog>
 
   <script src="/js/admin.js" defer></script>
 </body>
