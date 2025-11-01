@@ -13,11 +13,24 @@
       border-radius: 0.5rem;
       background: white;
       box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
+      /* This ensures cards don't shrink */
+      display: flex;
+      flex-direction: column;
     }
     .form-input, .form-select {
       border-color: #cbd5e1;
     }
     .form-input:focus, .form-select:focus {
+      border-color: #f97316;
+      box-shadow: 0 0 0 2px #fde6d5;
+      outline: none;
+    }
+    /* --- NEW --- Style for checkboxes */
+    .form-checkbox {
+      border-color: #cbd5e1;
+      color: #f97316;
+    }
+    .form-checkbox:focus {
       border-color: #f97316;
       box-shadow: 0 0 0 2px #fde6d5;
       outline: none;
@@ -45,7 +58,7 @@
       <p class="text-lg text-gray-600">Loading appointments...</p>
     </div>
 
-    <div id="appointments-list" class="space-y-6">
+    <div id="appointments-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       </div>
   </div>
 

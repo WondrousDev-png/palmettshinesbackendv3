@@ -3,20 +3,19 @@ const loading = document.getElementById('loading');
 const refreshBtn = document.getElementById('refresh-btn');
 const team = ['Charles', 'Kempson', 'Wilson', 'James'];
 
-// --- Assign Job Function ---
+// --- NEW: Assign Job Function (Handles Checkboxes) ---
 async function assignJob(id) {
-  const select = document.getElementById(`assign-select-${id}`);
-  const assignedTo = select.value;
-
-  if (!assignedTo) {
-    alert('Please select a team member.');
-    return;
-  }
+  const form = document.getElementById(`assign-form-${id}`);
+  const checkboxes = form.querySelectorAll('input[type="checkbox"]:checked');
+  
+  // Build an array of the names that are checked
+  const assignedTo = Array.from(checkboxes).map(cb => cb.value);
 
   try {
     const response = await fetch(`/api/schedule/assign/${id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      // Send the array of names
       body: JSON.stringify({ assignedTo: assignedTo })
     });
 
@@ -31,6 +30,27 @@ async function assignJob(id) {
     alert('Error: ' + error.message);
   }
 }
+
+// --- NEW: Update Status Function ---
+async function updateStatus(id, newStatus) {
+  try {
+    const response = await fetch(`/api/schedule/status/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update status');
+    }
+    
+    fetchAppointments(); // Refresh list
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
 
 // --- Delete/Complete Job Function ---
 async function deleteJob(id, action) {
@@ -80,13 +100,12 @@ async function confirmAppointment(id) {
     }
 
     fetchAppointments();
-
   } catch (error) {
     alert('Error: ' + error.message);
   }
 }
 
-// --- Fetch Appointments ---
+// --- Fetch Appointments (Heavily Updated) ---
 const fetchAppointments = async () => {
   list.innerHTML = ''; 
   loading.style.display = 'block'; 
@@ -111,51 +130,71 @@ const fetchAppointments = async () => {
 
     appointments.forEach(appt => {
       const card = document.createElement('div');
-      card.className = 'card overflow-hidden';
+      // Added flex classes to make the footer stick to the bottom
+      card.className = 'card overflow-hidden flex flex-col';
       
-      const statusColor = appt.status === 'Confirmed' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
-      
-      let assignHtml = '';
-      if (appt.assignedTo) {
-        assignHtml = `<p class="text-sm text-gray-800 font-semibold">Assigned to: ${appt.assignedTo}</p>`;
-      } else {
-        const options = team.map(name => `<option value="${name}">${name}</option>`).join('');
-        assignHtml = `
-          <div class="flex gap-2">
-            <select id="assign-select-${appt.id}" class="form-select block w-full rounded-lg border-gray-300 shadow-sm text-sm">
-              <option value="" disabled selected>Assign to...</option>
-              ${options}
-            </select>
-            <button onclick="assignJob('${appt.id}')" class="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 transition text-sm whitespace-nowrap">
-              Assign
-            </button>
-          </div>
-        `;
+      // --- NEW: Status Color Logic ---
+      let statusColor = 'bg-blue-100 text-blue-800'; // Pending
+      if (appt.status === 'Confirmed') {
+        statusColor = 'bg-green-100 text-green-800';
+      } else if (appt.status === 'Work in Progress') {
+        statusColor = 'bg-yellow-100 text-yellow-800';
       }
 
+      // --- NEW: HTML for Assigning Team (Checkboxes) ---
+      // Check if a name is in the appt.assignedTo array
+      const options = team.map(name => {
+        const isChecked = appt.assignedTo.includes(name);
+        return `
+          <label class="flex items-center space-x-2">
+            <input type="checkbox" class="form-checkbox" value="${name}" ${isChecked ? 'checked' : ''}>
+            <span>${name}</span>
+          </label>
+        `;
+      }).join('');
+      
+      const assignHtml = `
+        <form id="assign-form-${appt.id}" class="space-y-2">
+          <p class="text-sm text-gray-600 mb-2">Assign team:</p>
+          <div class="grid grid-cols-2 gap-2">${options}</div>
+          <button type="button" onclick="assignJob('${appt.id}')" class="mt-2 w-full bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 transition text-sm">
+            Save Assignments
+          </button>
+        </form>
+      `;
+
+      // --- NEW: HTML for Confirming / Status ---
       let confirmHtml = '';
-      if (appt.status === 'Confirmed') {
-        confirmHtml = `<p class="text-sm text-green-700 font-semibold">Confirmed for: ${appt.confirmedDate}</p>`;
-      } else {
+      if (appt.status === 'Pending') {
         confirmHtml = `
           <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
           <div class="flex gap-2">
-            <input type="text" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm" placeholder="e.g., Oct 30, 2 PM">
+            <input type="text" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm" placeholder="e.g., Nov 5, 2 PM">
             <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
               Confirm
             </button>
           </div>
         `;
+      } else if (appt.status === 'Confirmed') {
+        confirmHtml = `
+          <p class="text-sm text-green-700 font-semibold">Confirmed for: ${appt.confirmedDate}</p>
+          <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
+            Start Work
+          </button>
+        `;
+      } else if (appt.status === 'Work in Progress') {
+        confirmHtml = '<p class="text-sm text-yellow-700 font-semibold">Job is currently in progress.</p>';
       }
 
+      // --- Main Card Template (Updated) ---
       card.innerHTML = `
-        <div class="p-5">
+        <div class="p-5 flex-grow">
           <div class="flex justify-between items-start mb-3">
             <div>
               <h3 class="text-xl font-semibold text-gray-900">${appt.name}</h3>
               <p class="text-sm text-gray-500">${new Date(appt.receivedAt).toLocaleString()}</p>
             </div>
-            <span class="${statusColor} text-xs font-medium px-2.5 py-0.5 rounded-full">${appt.status}</span>
+            <span class="${statusColor} text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap">${appt.status}</span>
           </div>
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm mb-4">
@@ -178,28 +217,28 @@ const fetchAppointments = async () => {
             </div>
           </div>
           
-          <div classs="bg-gray-50 p-4 rounded-md mb-4">
+          <div class="bg-gray-50 p-4 rounded-md mb-4">
             <strong class="text-gray-600 block mb-1">Message:</strong>
             <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
           </div>
 
-          <div class="mt-4 pt-4 border-t border-gray-200 space-y-4">
-            <div id="confirm-section-${appt.id}">
+          <div class="space-y-4">
+            <div id="confirm-section-${appt.id}" class="mt-4 pt-4 border-t border-gray-200">
               ${confirmHtml}
             </div>
-            <div id="assign-section-${appt.id}">
+            <div id="assign-section-${appt.id}" class="mt-4 pt-4 border-t border-gray-200">
               ${assignHtml}
             </div>
           </div>
+        </div>
 
-          <div class="mt-4 pt-4 border-t border-gray-200 flex justify-end gap-3">
-            <button onclick="deleteJob('${appt.id}', 'complete')" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition text-sm">
-              Mark as Completed
-            </button>
-            <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
-              Delete Job
-            </button>
-          </div>
+        <div class="p-5 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button onclick="deleteJob('${appt.id}', 'complete')" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition text-sm">
+            Mark as Completed
+          </button>
+          <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
+            Delete Job
+          </button>
         </div>
       `;
       list.appendChild(card);

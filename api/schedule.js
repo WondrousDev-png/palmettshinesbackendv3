@@ -4,7 +4,6 @@ const path = require('path');
 const DB_PATH = path.join(__dirname, '..', 'appointments.json');
 
 // --- Helper Functions ---
-
 const getAppointments = async () => {
   try {
     const data = await fs.readFile(DB_PATH, 'utf8');
@@ -16,11 +15,9 @@ const getAppointments = async () => {
     throw error;
   }
 };
-
 const saveAppointments = async (appointments) => {
   await fs.writeFile(DB_PATH, JSON.stringify(appointments, null, 2), 'utf8');
 };
-
 const getEstimatedTime = (carType) => {
   switch (carType) {
     case 'Sedan': return 'Approx. 2 hours';
@@ -31,7 +28,7 @@ const getEstimatedTime = (carType) => {
   }
 };
 
-// --- HTML Response Functions ---
+// --- HTML Response Functions (No Change) ---
 const createSuccessHtml = (name) => {
   return `
     <!DOCTYPE html>
@@ -56,7 +53,6 @@ const createSuccessHtml = (name) => {
     </html>
   `;
 };
-
 const createErrorHtml = (message) => {
   return `
     <!DOCTYPE html>
@@ -88,18 +84,13 @@ const createErrorHtml = (message) => {
  * PUBLIC - POST /api/schedule
  */
 exports.submitAppointment = async (req, res) => {
-  // --- DEBUG LOGGING ---
   console.log('--- New Appointment Submission ---');
   try {
-    // This is the most important log
     console.log('Form Body Received:', req.body);
-
     const { name, email, car, subject, phone, availability, message } = req.body;
 
     if (!name || !email || !car || !subject) {
-      // Log if validation fails
       console.error('Validation Failed: Missing required fields.');
-      console.error({ name, email, car, subject });
       return res.status(400).send(createErrorHtml('Missing required fields. Please go back and fill out the form.'));
     }
     
@@ -110,17 +101,13 @@ exports.submitAppointment = async (req, res) => {
     const newAppointment = {
       id: Date.now().toString(),
       receivedAt: new Date().toISOString(),
-      name,
-      email,
-      phone: phone || 'N/A',
-      car,
-      subject,
+      name, email, phone: phone || 'N/A', car, subject,
       availability: availability || 'N/A',
       message: message || 'N/A',
       estimatedTime: getEstimatedTime(car),
-      status: 'Pending',
+      status: 'Pending', // Default status
       confirmedDate: null, 
-      assignedTo: null,
+      assignedTo: [], // --- UPDATED: Now an empty array ---
     };
 
     appointments.push(newAppointment);
@@ -132,10 +119,9 @@ exports.submitAppointment = async (req, res) => {
     res.status(201).send(createSuccessHtml(name));
 
   } catch (error) {
-    // --- This will catch any errors from get/save ---
     console.error('--- !! SERVER ERROR !! ---');
     console.error(error.message);
-    console.error(error.stack); // Full error details
+    console.error(error.stack); 
     res.status(500).send(createErrorHtml('Server error. We have been notified. Please try again later.'));
   }
 };
@@ -160,61 +146,76 @@ exports.confirmAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const { confirmedDate } = req.body;
-
     if (!confirmedDate) {
       return res.status(400).json({ message: 'Confirmed date is required' });
     }
-
     const appointments = await getAppointments();
-    let appointmentFound = false;
-
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
-        appointmentFound = true;
         return { ...appt, status: 'Confirmed', confirmedDate: confirmedDate };
       }
       return appt;
     });
-
-    if (!appointmentFound) {
-      return res.status(404).json({ message: 'Appointment not found' });
-    }
-
     await saveAppointments(updatedAppointments);
     res.status(200).json({ message: 'Appointment confirmed successfully' });
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error while confirming.' });
   }
 };
 
+// --- NEW FUNCTION ---
 /**
- * PROTECTED - POST /api/schedule/assign/:id
+ * PROTECTED - POST /api/schedule/status/:id
+ * Allows admin to set status to 'Work in Progress'
  */
-exports.assignJob = async (req, res) => {
+exports.updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { assignedTo } = req.body;
+    const { status } = req.body; // e.g., "Work in Progress"
 
-    if (!assignedTo) {
-      return res.status(400).json({ message: 'Team member name is required' });
+    if (!status) {
+      return res.status(400).json({ message: 'New status is required' });
     }
 
     const appointments = await getAppointments();
-    let appointmentFound = false;
-
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
-        appointmentFound = true;
-        return { ...appt, assignedTo: assignedTo };
+        return { ...appt, status: status };
       }
       return appt;
     });
 
-    if (!appointmentFound) {
-      return res.status(404).json({ message: 'Appointment not found' });
+    await saveAppointments(updatedAppointments);
+    res.status(200).json({ message: 'Status updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error while updating status.' });
+  }
+};
+
+
+/**
+ * PROTECTED - POST /api/schedule/assign/:id
+ * --- UPDATED --- Now accepts an array of names
+ */
+exports.assignJob = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Expecting: { assignedTo: ["Charles", "Wilson"] }
+    const { assignedTo } = req.body;
+
+    if (!Array.isArray(assignedTo)) {
+      return res.status(400).json({ message: 'assignedTo must be an array.' });
     }
+
+    const appointments = await getAppointments();
+    const updatedAppointments = appointments.map(appt => {
+      if (appt.id === id) {
+        return { ...appt, assignedTo: assignedTo };
+      }
+      return appt;
+    });
 
     await saveAppointments(updatedAppointments);
     res.status(200).json({ message: 'Job assigned successfully' });
@@ -240,7 +241,6 @@ exports.deleteJob = async (req, res) => {
 
     await saveAppointments(updatedAppointments);
     res.status(200).json({ message: 'Job removed successfully' });
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error while deleting job.' });
