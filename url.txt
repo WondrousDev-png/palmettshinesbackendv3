@@ -1,1 +1,3 @@
 palmettshinesbackendv3-production.up.railway.app
+yep
+this is how im gonna initialize this :sob:
