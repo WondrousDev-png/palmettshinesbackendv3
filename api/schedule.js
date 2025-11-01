@@ -2,8 +2,15 @@ const Redis = require('ioredis');
 
 let redis;
 
+// --- NEW DEBUGGING ---
+// Print all environment variables to see what Railway is providing
+console.log("--- App Starting ---");
+console.log("--- All Environment Variables ---");
+console.log(process.env);
+console.log("---------------------------------");
+// --- END DEBUGGING ---
+
 // --- NEW: Resilient Connection ---
-// This checks if Railway has provided the database variables.
 if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDISPASSWORD) {
   // If variables exist, connect to the real database.
   redis = new Redis({
@@ -16,13 +23,10 @@ if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDISPASSWORD)
   redis.on('error', (err) => console.error('Redis Connection Error:', err));
 } else {
   // --- This prevents the crash ---
-  // If variables are missing, log a warning and create a "mock" database.
-  // This allows the app to deploy so you can add the database later.
   console.warn('--- REDIS ENV VARS NOT FOUND ---');
   console.warn('App is running in "mock" database mode.');
   console.warn('Please add a Redis service in Railway to enable data saving.');
   
-  // Create a mock client that doesn't save but prevents crashes
   let mockAppointments = [];
   redis = {
     get: async (key) => {
@@ -218,3 +222,4 @@ exports.deleteJob = async (req, res) => {
     res.status(500).json({ message: 'Server error.' });
   }
 };
+
