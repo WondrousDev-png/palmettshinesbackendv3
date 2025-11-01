@@ -40,6 +40,7 @@ const questionCount = document.getElementById('question-count');
 // --- API Call Functions ---
 
 async function assignJob(id) {
+  // This function is for *just* saving assignments
   const form = document.getElementById(`assign-form-${id}`);
   const checkboxes = form.querySelectorAll('input[type="checkbox"]:checked');
   const assignedTo = Array.from(checkboxes).map(cb => cb.value);
@@ -89,20 +90,33 @@ async function deleteJob(id, action) {
   }
 }
 
+/**
+ * --- BUG FIX ---
+ * This function now saves date AND assignments at the same time.
+ */
 async function confirmAppointment(id) {
-  // --- UPDATED: Get value from datetime-local input ---
   const dateInput = document.getElementById(`date-input-${id}`);
-  const confirmedDate = dateInput.value; // This is now an ISO string e.g. "2025-11-05T14:00"
+  const confirmedDate = dateInput.value;
   
   if (!confirmedDate) {
     alert('Please select a date and time.'); 
     return;
   }
+
+  // --- NEW: Read assignments from the same card ---
+  const form = document.getElementById(`assign-form-${id}`);
+  const checkboxes = form.querySelectorAll('input[type="checkbox"]:checked');
+  const assignedTo = Array.from(checkboxes).map(cb => cb.value);
+
   try {
     const response = await fetch(`/api/schedule/confirm/${id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ confirmedDate: confirmedDate })
+      // --- NEW: Send both date and assignments ---
+      body: JSON.stringify({ 
+        confirmedDate: confirmedDate,
+        assignedTo: assignedTo 
+      })
     });
     if (!response.ok) throw new Error('Failed to confirm');
     fetchAppointments();
@@ -112,14 +126,13 @@ async function confirmAppointment(id) {
 }
 
 
-// --- Universal Card Rendering Function (UPDATED) ---
-function renderAppointmentCard(appt) {
-  // 1. Determine Status Color
-  let statusColor = 'bg-blue-100 text-blue-800'; // Pending
-  if (appt.status === 'Confirmed') statusColor = 'bg-green-100 text-green-800';
-  else if (appt.status === 'Work in Progress') statusColor = 'bg-yellow-100 text-yellow-800';
-
-  // 2. Build Assignment Checkboxes
+/**
+ * --- HEAVILY UPDATED ---
+ * This function now renders two types of cards: 'job' and 'question'
+ */
+function renderAppointmentCard(appt, cardType) {
+  
+  // --- Block 1: Build Assignment HTML ---
   const options = team.map(name => {
     const isChecked = appt.assignedTo && appt.assignedTo.includes(name);
     return `
@@ -130,51 +143,106 @@ function renderAppointmentCard(appt) {
     `;
   }).join('');
   
+  // Change button text based on card type
+  const assignButtonText = (cardType === 'question') ? 'Save Responders' : 'Save Assignments';
+  
   const assignHtml = `
     <form id="assign-form-${appt.id}" class="space-y-2">
-      <p class="text-sm text-gray-600 mb-2">Assign team:</p>
+      <p class="text-sm text-gray-600 mb-2">${(cardType === 'question') ? 'Assign to Respond:' : 'Assign team:'}</p>
       <div class="grid grid-cols-2 gap-2">${options}</div>
       <button type="button" onclick="assignJob('${appt.id}')" class="mt-2 w-full bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 transition text-sm">
-        Save Assignments
+        ${assignButtonText}
       </button>
     </form>
   `;
 
-  // 3. Build Confirmation / Status HTML
-  let confirmHtml = '';
-  if (appt.status === 'Pending') {
-    // --- UPDATED: Use datetime-local input ---
-    confirmHtml = `
-      <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
-      <div class="flex gap-2">
-        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm">
-        <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
-          Confirm
-        </button>
+  // --- Block 2: Build Card-Specific HTML ---
+  let statusColor, cardDetailsHtml, statusHtml, footerHtml;
+
+  if (cardType === 'question') {
+    // --- This is a "Question" card ---
+    statusColor = 'bg-blue-100 text-blue-800'; // Always "Pending"
+    
+    // Simple details: Just contact and message
+    cardDetailsHtml = `
+      <div><strong class="text-gray-600 block">Contact:</strong><p>${appt.email}</p><p>${appt.phone}</p></div>
+      <div class="bg-gray-50 p-4 rounded-md col-span-2">
+        <strong class="text-gray-600 block mb-1">Message:</strong>
+        <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
       </div>
     `;
-  } else if (appt.status === 'Confirmed') {
-    // --- UPDATED: Format the ISO date string for display ---
-    const friendlyDate = new Date(appt.confirmedDate).toLocaleString([], {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
-    confirmHtml = `
-      <p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>
-      <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
-        Start Work
+    
+    // No status/confirm section needed
+    statusHtml = '';
+
+    // Simple footer: "Mark as Responded" and "Delete"
+    footerHtml = `
+      <button onclick="deleteJob('${appt.id}', 'complete')" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition text-sm">
+        Mark as Responded
+      </button>
+      <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
+        Delete
       </button>
     `;
-  } else if (appt.status === 'Work in Progress') {
-    confirmHtml = `
-      <p class="text-sm text-yellow-700 font-semibold">Job is currently in progress.</p>
-      <button onclick="updateStatus('${appt.id}', 'Confirmed')" class="mt-2 w-full bg-gray-400 text-gray-900 font-bold py-2 px-3 rounded-lg hover:bg-gray-500 transition text-sm">
-        Pause Work
+
+  } else {
+    // --- This is a "Job" card (WIP, Confirmed, or Pending) ---
+    statusColor = 'bg-blue-100 text-blue-800'; // Pending
+    if (appt.status === 'Confirmed') statusColor = 'bg-green-100 text-green-800';
+    else if (appt.status === 'Work in Progress') statusColor = 'bg-yellow-100 text-yellow-800';
+
+    // Full job details
+    cardDetailsHtml = `
+      <div><strong class="text-gray-600 block">Contact:</strong><p>${appt.email}</p><p>${appt.phone}</p></div>
+      <div><strong class="text-gray-600 block">Vehicle:</strong><p>${appt.car} (${appt.estimatedTime})</p></div>
+      <div><strong class="text-gray-600 block">Subject:</strong><p>${appt.subject}</p></div>
+      <div><strong class="text-gray-600 block">Availability:</strong><p>${appt.availability}</p></div>
+      <div class="bg-gray-50 p-4 rounded-md col-span-2">
+        <strong class="text-gray-600 block mb-1">Message:</strong>
+        <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
+      </div>
+    `;
+
+    // Full status/confirm section
+    if (appt.status === 'Pending') {
+      statusHtml = `
+        <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
+        <div class="flex gap-2">
+          <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm">
+          <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
+            Confirm & Save
+          </button>
+        </div>
+      `;
+    } else if (appt.status === 'Confirmed') {
+      const friendlyDate = new Date(appt.confirmedDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      statusHtml = `
+        <p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>
+        <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
+          Start Work
+        </button>
+      `;
+    } else if (appt.status === 'Work in Progress') {
+      statusHtml = `
+        <p class="text-sm text-yellow-700 font-semibold">Job is currently in progress.</p>
+        <button onclick="updateStatus('${appt.id}', 'Confirmed')" class="mt-2 w-full bg-gray-400 text-gray-900 font-bold py-2 px-3 rounded-lg hover:bg-gray-500 transition text-sm">
+          Pause Work
+        </button>
+      `;
+    }
+    
+    // Full footer
+    footerHtml = `
+      <button onclick="deleteJob('${appt.id}', 'complete')" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition text-sm">
+        Mark as Completed
+      </button>
+      <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
+        Delete Job
       </button>
     `;
   }
 
-  // 4. Create the Card Element
+  // --- Block 3: Assemble the Card ---
   const card = document.createElement('div');
   card.className = 'card overflow-hidden flex flex-col';
   card.innerHTML = `
@@ -186,32 +254,26 @@ function renderAppointmentCard(appt) {
         </div>
         <span class="${statusColor} text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap">${appt.status}</span>
       </div>
+      
       <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm mb-4">
-        <div><strong class="text-gray-600 block">Contact:</strong><p>${appt.email}</p><p>${appt.phone}</p></div>
-        <div><strong class="text-gray-600 block">Vehicle:</strong><p>${appt.car} (${appt.estimatedTime})</p></div>
-        <div><strong class="text-gray-600 block">Subject:</strong><p>${appt.subject}</p></div>
-        <div><strong class="text-gray-600 block">Availability:</strong><p>${appt.availability}</p></div>
+        ${cardDetailsHtml}
       </div>
-      <div class="bg-gray-50 p-4 rounded-md mb-4">
-        <strong class="text-gray-600 block mb-1">Message:</strong>
-        <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
-      </div>
+      
       <div class="space-y-4">
-        <div id="confirm-section-${appt.id}" class="mt-4 pt-4 border-t border-gray-200">
-          ${confirmHtml}
-        </div>
+        ${statusHtml ? `
+          <div id="confirm-section-${appt.id}" class="mt-4 pt-4 border-t border-gray-200">
+            ${statusHtml}
+          </div>
+        ` : ''}
+        
         <div id="assign-section-${appt.id}" class="mt-4 pt-4 border-t border-gray-200">
           ${assignHtml}
         </div>
       </div>
     </div>
+    
     <div class="p-5 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-      <button onclick="deleteJob('${appt.id}', 'complete')" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition text-sm">
-        Mark as Completed
-      </button>
-      <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
-        Delete Job
-      </button>
+      ${footerHtml}
     </div>
   `;
   return card;
@@ -256,11 +318,15 @@ const fetchAppointments = async () => {
           break;
         case 'Confirmed':
           confirmedJobs.push(appt);
-          // --- NEW: Add to calendar events array ---
           if (appt.confirmedDate) {
+            // --- NEW: Calendar title includes time and team ---
+            const calDate = new Date(appt.confirmedDate);
+            const calTime = calDate.toLocaleString([], { timeStyle: 'short' });
+            const teamString = appt.assignedTo.length ? ` (${appt.assignedTo.join(', ')})` : '';
+            
             calendarEvents.push({
-              title: `${appt.name} - ${appt.car}`, // e.g., "John Doe - SUV"
-              start: appt.confirmedDate, // The ISO string from the datetime-local input
+              title: `${calTime} - ${appt.name}${teamString} - ${appt.car}`,
+              start: appt.confirmedDate,
               allDay: false
             });
           }
@@ -278,7 +344,7 @@ const fetchAppointments = async () => {
     // 4. Render "Work in Progress" section
     wipCount.textContent = wipJobs.length;
     if (wipJobs.length > 0) {
-      wipJobs.forEach(appt => wipList.appendChild(renderAppointmentCard(appt)));
+      wipJobs.forEach(appt => wipList.appendChild(renderAppointmentCard(appt, 'job')));
     } else {
       wipEmpty.style.display = 'block';
     }
@@ -286,7 +352,7 @@ const fetchAppointments = async () => {
     // 5. Render "Confirmed" section
     confirmedCount.textContent = confirmedJobs.length;
     if (confirmedJobs.length > 0) {
-      confirmedJobs.forEach(appt => confirmedList.appendChild(renderAppointmentCard(appt)));
+      confirmedJobs.forEach(appt => confirmedList.appendChild(renderAppointmentCard(appt, 'job')));
     } else {
       confirmedEmpty.style.display = 'block';
     }
@@ -294,7 +360,7 @@ const fetchAppointments = async () => {
     // 6. Render "Schedule" sub-tab
     scheduleCount.textContent = scheduleJobs.length;
     if (scheduleJobs.length > 0) {
-      scheduleJobs.forEach(appt => scheduleList.appendChild(renderAppointmentCard(appt)));
+      scheduleJobs.forEach(appt => scheduleList.appendChild(renderAppointmentCard(appt, 'job')));
     } else {
       scheduleEmpty.style.display = 'block';
     }
@@ -302,7 +368,8 @@ const fetchAppointments = async () => {
     // 7. Render "Question" sub-tab
     questionCount.textContent = questionJobs.length;
     if (questionJobs.length > 0) {
-      questionJobs.forEach(appt => questionList.appendChild(renderAppointmentCard(appt)));
+      // --- NEW: Render as 'question' type ---
+      questionJobs.forEach(appt => questionList.appendChild(renderAppointmentCard(appt, 'question')));
     } else {
       questionEmpty.style.display = 'block';
     }
@@ -322,8 +389,14 @@ const fetchAppointments = async () => {
         right: 'dayGridMonth,timeGridWeek'
       },
       events: calendarEvents,
-      editable: false, // Don't allow dragging
-      dayMaxEvents: true, // allow "more" link when too many events
+      editable: false, 
+      dayMaxEvents: true, 
+      // --- NEW: Show event time ---
+      eventTimeFormat: {
+        hour: 'numeric',
+        minute: '2-digit',
+        meridiem: 'short'
+      }
     });
     calendar.render();
 
@@ -352,10 +425,7 @@ function setupTabSwitcher(nav, panels) {
     const panel = document.getElementById(`panel-${tabName}`);
     panel.classList.add('active');
 
-    // --- NEW: Re-render calendar if its tab is clicked ---
-    // This fixes a bug where FullCalendar doesn't draw if hidden
     if (tabName === 'calendar' && calendar) {
-      // Use a short timeout to let the tab panel become visible first
       setTimeout(() => calendar.render(), 0);
     }
   });

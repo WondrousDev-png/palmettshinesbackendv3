@@ -60,7 +60,7 @@ const createSuccessHtml = (name) => {
     <html lang="en">
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family/Inter:wght@400;600;700&display=swap" rel="stylesheet" />
       <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
         .container { padding: 2rem; background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -174,19 +174,32 @@ exports.getAppointments = async (req, res) => {
   }
 };
 
+/**
+ * PROTECTED - POST /api/schedule/confirm/:id
+ * --- UPDATED --- Now saves assignedTo array at the same time
+ */
 exports.confirmAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    // --- UPDATED: Expecting a full ISO date string ---
-    const { confirmedDate } = req.body;
+    const { confirmedDate, assignedTo } = req.body; // Now receives both
+    
     if (!confirmedDate) {
       return res.status(400).json({ message: 'Confirmed date is required' });
     }
+    if (!Array.isArray(assignedTo)) {
+       return res.status(400).json({ message: 'assignedTo must be an array' });
+    }
+
     const appointments = await getAppointments();
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
-        // Set status to Confirmed and save the proper date
-        return { ...appt, status: 'Confirmed', confirmedDate: confirmedDate };
+        // Set status, date, AND assignments all at once
+        return { 
+          ...appt, 
+          status: 'Confirmed', 
+          confirmedDate: confirmedDate,
+          assignedTo: assignedTo 
+        };
       }
       return appt;
     });
