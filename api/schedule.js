@@ -1,32 +1,52 @@
-// --- NEW: Import Redis ---
 const Redis = require('ioredis');
 
-// --- NEW: Connect to Redis ---
-// Railway automatically provides these environment variables
-// when you link a Redis service.
-const redis = new Redis({
-  host: process.env.REDISHOST,
-  port: process.env.REDISPORT,
-  password: process.env.REDISPASSWORD,
-  maxRetriesPerRequest: null
-});
+let redis;
 
-redis.on('connect', () => console.log('Connected to Redis database!'));
-redis.on('error', (err) => console.error('Redis Connection Error:', err));
+// --- NEW: Resilient Connection ---
+// This checks if Railway has provided the database variables.
+if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDISPASSWORD) {
+  // If variables exist, connect to the real database.
+  redis = new Redis({
+    host: process.env.REDISHOST,
+    port: process.env.REDISPORT,
+    password: process.env.REDISPASSWORD,
+    maxRetriesPerRequest: null
+  });
+  redis.on('connect', () => console.log('Connected to Redis database!'));
+  redis.on('error', (err) => console.error('Redis Connection Error:', err));
+} else {
+  // --- This prevents the crash ---
+  // If variables are missing, log a warning and create a "mock" database.
+  // This allows the app to deploy so you can add the database later.
+  console.warn('--- REDIS ENV VARS NOT FOUND ---');
+  console.warn('App is running in "mock" database mode.');
+  console.warn('Please add a Redis service in Railway to enable data saving.');
+  
+  // Create a mock client that doesn't save but prevents crashes
+  let mockAppointments = [];
+  redis = {
+    get: async (key) => {
+      console.log('Mock DB: Getting appointments');
+      return JSON.stringify(mockAppointments);
+    },
+    set: async (key, value) => {
+      console.warn('Mock DB: "Saving" appointments (not really). Add Redis to save.');
+      mockAppointments = JSON.parse(value);
+      return 'OK';
+    },
+  };
+}
 
 // --- Helper Functions (Rewritten for Redis) ---
 const getAppointments = async () => {
-  // Get the string data from Redis
   const data = await redis.get('appointments');
   if (!data) {
-    return []; // If no data, return empty array
+    return [];
   }
-  // Data is stored as a string, so we must parse it back into an array
   return JSON.parse(data);
 };
 
 const saveAppointments = async (appointments) => {
-  // We must stringify the array to store it as a string in Redis
   await redis.set('appointments', JSON.stringify(appointments));
 };
 
@@ -46,7 +66,7 @@ const createSuccessHtml = (name) => {
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta name-"viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
       <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
