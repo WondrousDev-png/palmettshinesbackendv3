@@ -3,9 +3,11 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const cors = require('cors');
 const basicAuth = require('express-basic-auth');
-const scheduleApi = require('./schedule.js'); // Updated path
+const scheduleApi = require('./api/schedule.js');
 
 const app = express();
+// Railway provides the PORT environment variable
+const PORT = process.env.PORT || 3000;
 
 // --- Security & Middleware ---
 app.use(cors());
@@ -20,11 +22,7 @@ const adminAuth = basicAuth({
 });
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// --- UPDATED: Vercel path for static files ---
-// Vercel automatically serves the 'public' folder.
-// This code explicitly serves the 'public' folder for Express.
-app.use(express.static(path.join(process.cwd(), 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 // --- Routes ---
@@ -32,9 +30,8 @@ app.get('/', (req, res) => {
   res.redirect('/admin');
 });
 
-// --- UPDATED: Vercel path for views ---
 app.get('/admin', adminAuth, (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'views', 'admin.html'));
+  res.sendFile(path.join(__dirname, 'views', 'admin.html'));
 });
 
 // --- API Routes ---
@@ -46,7 +43,7 @@ app.delete('/api/schedule/:id', adminAuth, scheduleApi.deleteJob);
 app.post('/api/schedule/status/:id', adminAuth, scheduleApi.updateStatus);
 
 
-// --- IMPORTANT ---
-// We no longer call app.listen()
-// We export the app for Vercel to run
-module.exports = app;
+// --- Start Server ---
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

@@ -1,16 +1,33 @@
-// --- NEW: Import Vercel KV ---
-const { kv } = require('@vercel/kv');
+// --- NEW: Import Redis ---
+const Redis = require('ioredis');
 
-// --- Helper Functions (Rewritten for KV) ---
+// --- NEW: Connect to Redis ---
+// Railway automatically provides these environment variables
+// when you link a Redis service.
+const redis = new Redis({
+  host: process.env.REDISHOST,
+  port: process.env.REDISPORT,
+  password: process.env.REDISPASSWORD,
+  maxRetriesPerRequest: null
+});
+
+redis.on('connect', () => console.log('Connected to Redis database!'));
+redis.on('error', (err) => console.error('Redis Connection Error:', err));
+
+// --- Helper Functions (Rewritten for Redis) ---
 const getAppointments = async () => {
-  // Get the array from the database. If it doesn't exist, return [].
-  const appointments = await kv.get('appointments');
-  return appointments || [];
+  // Get the string data from Redis
+  const data = await redis.get('appointments');
+  if (!data) {
+    return []; // If no data, return empty array
+  }
+  // Data is stored as a string, so we must parse it back into an array
+  return JSON.parse(data);
 };
 
 const saveAppointments = async (appointments) => {
-  // Save the entire array back to the database
-  await kv.set('appointments', appointments);
+  // We must stringify the array to store it as a string in Redis
+  await redis.set('appointments', JSON.stringify(appointments));
 };
 
 const getEstimatedTime = (carType) => {
@@ -29,7 +46,7 @@ const createSuccessHtml = (name) => {
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name-"viewport" content="width=device-width, initial-scale=1.0">
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
       <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
@@ -73,7 +90,7 @@ const createErrorHtml = (message) => {
   `;
 };
 
-// --- Exported Route Handlers (Logic is identical, just uses new helpers) ---
+// --- Exported Route Handlers (No logic change needed) ---
 
 exports.submitAppointment = async (req, res) => {
   try {
@@ -81,7 +98,6 @@ exports.submitAppointment = async (req, res) => {
     if (!name || !email || !car || !subject) {
       return res.status(400).send(createErrorHtml('Missing required fields.'));
     }
-    
     const appointments = await getAppointments();
     const newAppointment = {
       id: Date.now().toString(),
@@ -182,4 +198,3 @@ exports.deleteJob = async (req, res) => {
     res.status(500).json({ message: 'Server error.' });
   }
 };
-

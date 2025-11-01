@@ -1,1 +1,1 @@
-https://palmettshinesbackendv3.onrender.com
+palmettshinesbackendv3-production.up.railway.app
