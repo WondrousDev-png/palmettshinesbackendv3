@@ -119,9 +119,18 @@ const createErrorHtml = (message) => {
 // --- Exported Route Handlers (No logic change needed) ---
 
 exports.submitAppointment = async (req, res) => {
+  // --- !! NEW LOGGING !! ---
+  console.log('--- submitAppointment route HIT ---');
+  // This log will show us exactly what the form is sending.
+  console.log('Received req.body:', JSON.stringify(req.body, null, 2));
+  // --- !! END NEW LOGGING !! ---
   try {
     const { name, email, car, subject, phone, availability, message } = req.body;
     if (!name || !email || !car || !subject) {
+      // --- !! NEW LOGGING !! ---
+      console.warn('Validation FAILED. req.body did not contain required fields.');
+      console.warn(`Name: ${name}, Email: ${email}, Car: ${car}, Subject: ${subject}`);
+      // --- !! END NEW LOGGING !! ---
       return res.status(400).send(createErrorHtml('Missing required fields.'));
     }
     const appointments = await getAppointments();
@@ -138,6 +147,10 @@ exports.submitAppointment = async (req, res) => {
     };
     appointments.push(newAppointment);
     await saveAppointments(appointments);
+    
+    // --- !! NEW LOGGING !! ---
+    console.log('SUCCESS: Appointment saved. Sending Success HTML.');
+    // --- !! END NEW LOGGING !! ---
     res.status(201).send(createSuccessHtml(name));
   } catch (error) {
     console.error("Error in submitAppointment:", error);
