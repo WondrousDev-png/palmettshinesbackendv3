@@ -7,7 +7,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   
-  <!-- --- FullCalendar CSS & JS --- -->
   <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.14/index.global.min.js'></script>
 
   <style>
@@ -96,7 +95,6 @@
 <body class="bg-gray-100">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     
-    <!-- Header -->
     <header class="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center">
       <div>
         <h1 class="text-3xl font-bold text-gray-900">Appointment Dashboard</h1>
@@ -109,23 +107,18 @@
       </button>
     </header>
 
-    <!-- Loading Spinner -->
     <div id="loading" class="text-center py-10">
       <p class="text-lg text-gray-600">Loading appointments...</p>
     </div>
 
-    <!-- --- NEW: Today's Summary Section --- -->
-    <div id="today-summary-container" class="mb-8 hidden"> <!-- Hidden by default -->
-      <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b-2 border-gray-200 pb-2">
+    <div id="today-summary-container" class="mb-8 hidden"> <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b-2 border-gray-200 pb-2">
         Today's Schedule
       </h2>
       <div id="today-summary-list" class="space-y-3">
-        <!-- Today's jobs will be injected here -->
-      </div>
+        </div>
       <p id="today-summary-empty" class="text-gray-600 text-center py-4 hidden">No jobs scheduled for today.</p>
     </div>
 
-    <!-- --- Tab Navigation --- -->
     <div class="border-b border-gray-200 mb-6">
       <nav class="flex flex-wrap -mb-px" id="tab-nav">
         <button class="tab active" data-tab="wip">
@@ -143,22 +136,18 @@
       </nav>
     </div>
 
-    <!-- --- Tab Panels --- -->
     <div id="tab-content">
       
-      <!-- Work in Progress Panel -->
       <div id="panel-wip" class="tab-panel active">
         <div id="wip-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         <p id="wip-empty" class="text-gray-600 text-center py-6 hidden">No jobs are currently in progress.</p>
       </div>
 
-      <!-- Confirmed Panel -->
       <div id="panel-confirmed" class="tab-panel">
         <div id="confirmed-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         <p id="confirmed-empty" class="text-gray-600 text-center py-6 hidden">No confirmed jobs.</p>
       </div>
       
-      <!-- New Requests Panel (with sub-tabs) -->
       <div id="panel-new" class="tab-panel">
         <nav class="flex flex-wrap -mb-px" id="sub-tab-nav">
           <button class="tab active" data-tab="schedule">
@@ -181,17 +170,14 @@
         </div>
       </div>
 
-      <!-- Calendar Panel -->
       <div id="panel-calendar" class="tab-panel">
         <div id="calendar">
-          <!-- FullCalendar will be injected here -->
-        </div>
+          </div>
       </div>
 
     </div>
   </div>
 
-  <!-- --- Day Summary Modal --- -->
   <dialog id="day-summary-modal">
     <div class="flex justify-between items-center">
       <div>
@@ -201,8 +187,7 @@
       <button id="modal-close-btn" class="text-gray-400 hover:text-gray-700 text-2xl">&times;</button>
     </div>
     <ul id="day-summary-list" class="modal-list">
-      <!-- Summary items will be injected here -->
-    </ul>
+      </ul>
   </dialog>
 
   <script src="/js/admin.js" defer></script>

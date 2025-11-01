@@ -80,7 +80,7 @@ async function updateStatus(id, newStatus) {
     if (!response.ok) throw new Error('Failed to update status');
     fetchAppointments();
   } catch (error) {
-    alert('Error: 'D' + error.message);
+    alert('Error: ' + error.message);
   }
 }
 
