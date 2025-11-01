@@ -2,28 +2,38 @@
 const loading = document.getElementById('loading');
 const refreshBtn = document.getElementById('refresh-btn');
 const team = ['Charles', 'Kempson', 'Wilson', 'James'];
+let calendar; // To hold the FullCalendar instance
 
-// Tab Navigation
-const tabNav = document.getElementById('tab-nav');
-const tabContent = document.getElementById('tab-content');
-const tabs = tabNav.querySelectorAll('.tab');
-const panels = tabContent.querySelectorAll('.tab-panel');
+// --- Main Tab Navigation ---
+const mainTabNav = document.getElementById('tab-nav');
+const mainTabContent = document.getElementById('tab-content');
+const mainTabs = mainTabNav.querySelectorAll('.tab');
+const mainPanels = mainTabContent.querySelectorAll('.tab-panel');
 
-// Lists
-const progressList = document.getElementById('progress-list');
-const progressContainer = document.getElementById('progress-container');
+// --- Sub-Tab Navigation ---
+const subTabNav = document.getElementById('sub-tab-nav');
+const subTabContent = document.getElementById('sub-tab-content');
+const subTabs = subTabNav.querySelectorAll('.tab');
+const subPanels = subTabContent.querySelectorAll('.tab-panel');
+
+// --- Job Lists ---
+const wipList = document.getElementById('wip-list');
+const confirmedList = document.getElementById('confirmed-list');
 const scheduleList = document.getElementById('schedule-list');
-const inquiryList = document.getElementById('inquiry-list');
 const questionList = document.getElementById('question-list');
+const calendarEl = document.getElementById('calendar');
 
-// Empty Messages
+// --- Empty Messages ---
+const wipEmpty = document.getElementById('wip-empty');
+const confirmedEmpty = document.getElementById('confirmed-empty');
 const scheduleEmpty = document.getElementById('schedule-empty');
-const inquiryEmpty = document.getElementById('inquiry-empty');
 const questionEmpty = document.getElementById('question-empty');
 
-// Count Badges
+// --- Count Badges ---
+const wipCount = document.getElementById('wip-count');
+const confirmedCount = document.getElementById('confirmed-count');
+const newCount = document.getElementById('new-count');
 const scheduleCount = document.getElementById('schedule-count');
-const inquiryCount = document.getElementById('inquiry-count');
 const questionCount = document.getElementById('question-count');
 
 
@@ -80,10 +90,12 @@ async function deleteJob(id, action) {
 }
 
 async function confirmAppointment(id) {
+  // --- UPDATED: Get value from datetime-local input ---
   const dateInput = document.getElementById(`date-input-${id}`);
-  const confirmedDate = dateInput.value;
+  const confirmedDate = dateInput.value; // This is now an ISO string e.g. "2025-11-05T14:00"
+  
   if (!confirmedDate) {
-    alert('Please enter a date and time.'); 
+    alert('Please select a date and time.'); 
     return;
   }
   try {
@@ -100,7 +112,7 @@ async function confirmAppointment(id) {
 }
 
 
-// --- NEW: Universal Card Rendering Function ---
+// --- Universal Card Rendering Function (UPDATED) ---
 function renderAppointmentCard(appt) {
   // 1. Determine Status Color
   let statusColor = 'bg-blue-100 text-blue-800'; // Pending
@@ -131,18 +143,24 @@ function renderAppointmentCard(appt) {
   // 3. Build Confirmation / Status HTML
   let confirmHtml = '';
   if (appt.status === 'Pending') {
+    // --- UPDATED: Use datetime-local input ---
     confirmHtml = `
       <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
       <div class="flex gap-2">
-        <input type="text" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm" placeholder="e.g., Nov 5, 2 PM">
+        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm">
         <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
           Confirm
         </button>
       </div>
     `;
   } else if (appt.status === 'Confirmed') {
+    // --- UPDATED: Format the ISO date string for display ---
+    const friendlyDate = new Date(appt.confirmedDate).toLocaleString([], {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
     confirmHtml = `
-      <p class="text-sm text-green-700 font-semibold">Confirmed for: ${appt.confirmedDate}</p>
+      <p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>
       <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
         Start Work
       </button>
@@ -200,115 +218,153 @@ function renderAppointmentCard(appt) {
 }
 
 
-// --- NEW: Main Fetch and Render Function ---
+// --- Main Fetch and Render Function (HEAVILY UPDATED) ---
 const fetchAppointments = async () => {
   // 1. Clear all lists and show loading
   loading.style.display = 'block';
-  progressList.innerHTML = '';
+  wipList.innerHTML = '';
+  confirmedList.innerHTML = '';
   scheduleList.innerHTML = '';
-  inquiryList.innerHTML = '';
   questionList.innerHTML = '';
-  progressContainer.style.display = 'none';
-  scheduleEmpty.style.display = 'none';
-  inquiryEmpty.style.display = 'none';
-  questionEmpty.style.display = 'none';
+  [wipEmpty, confirmedEmpty, scheduleEmpty, questionEmpty].forEach(el => el.style.display = 'none');
 
   try {
     const response = await fetch('/api/schedule');
     if (response.status === 401) {
       loading.style.display = 'none';
-      progressContainer.innerHTML = '<p class="text-red-600 text-center card p-6">Error: Unauthorized. Please refresh and log in.</p>';
+      wipList.innerHTML = '<p class="text-red-600 text-center card p-6">Error: Unauthorized. Please refresh and log in.</p>';
       return;
     }
     if (!response.ok) throw new Error('Failed to fetch data');
     
-    // API already sorts 'Work in Progress' to the top
+    // API already sorts by status priority
     const appointments = await response.json();
     loading.style.display = 'none'; 
 
     // 2. Create local arrays for each category
-    const inProgressJobs = [];
+    const wipJobs = [];
+    const confirmedJobs = [];
     const scheduleJobs = [];
-    const inquiryJobs = [];
     const questionJobs = [];
+    const calendarEvents = []; // For FullCalendar
 
     // 3. Sort appointments into local arrays
     for (const appt of appointments) {
-      if (appt.status === 'Work in Progress') {
-        inProgressJobs.push(appt);
-      } else if (appt.subject === 'Schedule Service' || appt.subject === 'Other') {
-        scheduleJobs.push(appt);
-      } else if (appt.subject === 'Service Inquiry') {
-        inquiryJobs.push(appt);
-      } else { // 'General Question'
-        questionJobs.push(appt);
+      switch (appt.status) {
+        case 'Work in Progress':
+          wipJobs.push(appt);
+          break;
+        case 'Confirmed':
+          confirmedJobs.push(appt);
+          // --- NEW: Add to calendar events array ---
+          if (appt.confirmedDate) {
+            calendarEvents.push({
+              title: `${appt.name} - ${appt.car}`, // e.g., "John Doe - SUV"
+              start: appt.confirmedDate, // The ISO string from the datetime-local input
+              allDay: false
+            });
+          }
+          break;
+        case 'Pending':
+          if (appt.subject === 'Schedule Service' || appt.subject === 'Other') {
+            scheduleJobs.push(appt);
+          } else {
+            questionJobs.push(appt); // 'General Question' & 'Service Inquiry'
+          }
+          break;
       }
     }
 
     // 4. Render "Work in Progress" section
-    if (inProgressJobs.length > 0) {
-      progressContainer.style.display = 'block';
-      for (const appt of inProgressJobs) {
-        progressList.appendChild(renderAppointmentCard(appt));
-      }
+    wipCount.textContent = wipJobs.length;
+    if (wipJobs.length > 0) {
+      wipJobs.forEach(appt => wipList.appendChild(renderAppointmentCard(appt)));
+    } else {
+      wipEmpty.style.display = 'block';
     }
 
-    // 5. Render "Schedule Service" section
+    // 5. Render "Confirmed" section
+    confirmedCount.textContent = confirmedJobs.length;
+    if (confirmedJobs.length > 0) {
+      confirmedJobs.forEach(appt => confirmedList.appendChild(renderAppointmentCard(appt)));
+    } else {
+      confirmedEmpty.style.display = 'block';
+    }
+
+    // 6. Render "Schedule" sub-tab
     scheduleCount.textContent = scheduleJobs.length;
     if (scheduleJobs.length > 0) {
-      for (const appt of scheduleJobs) {
-        scheduleList.appendChild(renderAppointmentCard(appt));
-      }
+      scheduleJobs.forEach(appt => scheduleList.appendChild(renderAppointmentCard(appt)));
     } else {
       scheduleEmpty.style.display = 'block';
     }
 
-    // 6. Render "Service Inquiry" section
-    inquiryCount.textContent = inquiryJobs.length;
-    if (inquiryJobs.length > 0) {
-      for (const appt of inquiryJobs) {
-        inquiryList.appendChild(renderAppointmentCard(appt));
-      }
-    } else {
-      inquiryEmpty.style.display = 'block';
-    }
-
-    // 7. Render "General Question" section
+    // 7. Render "Question" sub-tab
     questionCount.textContent = questionJobs.length;
     if (questionJobs.length > 0) {
-      for (const appt of questionJobs) {
-        questionList.appendChild(renderAppointmentCard(appt));
-      }
+      questionJobs.forEach(appt => questionList.appendChild(renderAppointmentCard(appt)));
     } else {
       questionEmpty.style.display = 'block';
     }
 
+    // 8. Update "New Requests" main tab count
+    newCount.textContent = scheduleJobs.length + questionJobs.length;
+
+    // 9. --- NEW: Render Calendar ---
+    if (calendar) {
+      calendar.destroy(); // Destroy old instance to prevent duplicates
+    }
+    calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth',
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,timeGridWeek'
+      },
+      events: calendarEvents,
+      editable: false, // Don't allow dragging
+      dayMaxEvents: true, // allow "more" link when too many events
+    });
+    calendar.render();
+
   } catch (error) {
     loading.style.display = 'none';
-    progressContainer.innerHTML = `<p class="text-red-600 text-center card p-6">Error loading appointments: ${error.message}</p>`;
+    wipList.innerHTML = `<p class="text-red-600 text-center card p-6">Error loading appointments: ${error.message}</p>`;
+    console.error(error);
   }
 };
 
-// --- NEW: Tab Switching Logic ---
-tabNav.addEventListener('click', (e) => {
-  const clickedTab = e.target.closest('.tab');
-  if (!clickedTab) return; // Didn't click a tab
+// --- Tab Switching Logic (Updated) ---
+function setupTabSwitcher(nav, panels) {
+  nav.addEventListener('click', (e) => {
+    const clickedTab = e.target.closest('.tab');
+    if (!clickedTab) return;
 
-  // 1. Deactivate all tabs and panels
-  tabs.forEach(tab => tab.classList.remove('active'));
-  panels.forEach(panel => panel.classList.remove('active'));
+    // 1. Deactivate all tabs and panels in this group
+    nav.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+    panels.forEach(panel => panel.classList.remove('active'));
 
-  // 2. Activate the clicked tab
-  clickedTab.classList.add('active');
-  
-  // 3. Activate the corresponding panel
-  const tabName = clickedTab.dataset.tab;
-  const panel = document.getElementById(`panel-${tabName}`);
-  panel.classList.add('active');
-});
+    // 2. Activate the clicked tab
+    clickedTab.classList.add('active');
+    
+    // 3. Activate the corresponding panel
+    const tabName = clickedTab.dataset.tab;
+    const panel = document.getElementById(`panel-${tabName}`);
+    panel.classList.add('active');
+
+    // --- NEW: Re-render calendar if its tab is clicked ---
+    // This fixes a bug where FullCalendar doesn't draw if hidden
+    if (tabName === 'calendar' && calendar) {
+      // Use a short timeout to let the tab panel become visible first
+      setTimeout(() => calendar.render(), 0);
+    }
+  });
+}
 
 // --- Initial Load ---
 document.addEventListener('DOMContentLoaded', () => {
+  setupTabSwitcher(mainTabNav, mainPanels);
+  setupTabSwitcher(subTabNav, subPanels);
   fetchAppointments();
   refreshBtn.addEventListener('click', fetchAppointments);
 });

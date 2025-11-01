@@ -6,6 +6,9 @@
   <title>Admin Panel - Appointments</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.14/index.global.min.js'></script>
+
   <style>
     body { font-family: 'Inter', sans-serif; }
     .card {
@@ -16,10 +19,10 @@
       display: flex;
       flex-direction: column;
     }
-    .form-input, .form-select {
+    .form-input, .form-select, input[type="datetime-local"] {
       border-color: #cbd5e1;
     }
-    .form-input:focus, .form-select:focus {
+    .form-input:focus, .form-select:focus, input[type="datetime-local"]:focus {
       border-color: #f97316;
       box-shadow: 0 0 0 2px #fde6d5;
       outline: none;
@@ -50,6 +53,21 @@
     .tab-panel.active {
       display: block; /* Shown by JS */
     }
+    
+    /* --- NEW: FullCalendar Styles --- */
+    #calendar {
+      background-color: white;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
+    }
+    .fc-event {
+      background-color: #f97316 !important;
+      border-color: #f97316 !important;
+    }
+    .fc-day-today {
+      background-color: #fff7ed !important;
+    }
   </style>
 </head>
 <body class="bg-gray-100">
@@ -71,47 +89,67 @@
       <p class="text-lg text-gray-600">Loading appointments...</p>
     </div>
 
-    <div id="progress-container" class="mb-12 hidden"> <h2 class="text-2xl font-semibold text-yellow-800 mb-4 border-b-2 border-yellow-300 pb-2">
-        Active Jobs (Work in Progress)
-      </h2>
-      <div id="progress-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        </div>
-    </div>
-
     <div class="border-b border-gray-200 mb-6">
-      <nav class="flex space-x-4" id="tab-nav">
-        <button class="tab active" data-tab="schedule">
-          Schedule Requests <span id="schedule-count" class="ml-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+      <nav class="flex flex-wrap space-x-4" id="tab-nav">
+        <button class="tab active" data-tab="wip">
+          Work in Progress <span id="wip-count" class="ml-1 bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
         </button>
-        <button class="tab" data-tab="inquiry">
-          Service Inquiries <span id="inquiry-count" class="ml-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+        <button class="tab" data-tab="confirmed">
+          Confirmed & Assigned <span id="confirmed-count" class="ml-1 bg-green-200 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
         </button>
-        <button class="tab" data-tab="question">
-          General Questions <span id="question-count" class="ml-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+        <button class="tab" data-tab="new">
+          New Requests <span id="new-count" class="ml-1 bg-blue-200 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+        </button>
+        <button class="tab" data-tab="calendar">
+          Calendar
         </button>
       </nav>
     </div>
 
     <div id="tab-content">
-      <div id="panel-schedule" class="tab-panel active">
-        <div id="schedule-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      
+      <div id="panel-wip" class="tab-panel active">
+        <div id="wip-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           </div>
-        <p id="schedule-empty" class="text-gray-600 text-center py-6 hidden">No pending schedule requests.</p>
+        <p id="wip-empty" class="text-gray-600 text-center py-6 hidden">No jobs are currently in progress.</p>
       </div>
 
-      <div id="panel-inquiry" class="tab-panel">
-        <div id="inquiry-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div id="panel-confirmed" class="tab-panel">
+        <div id="confirmed-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           </div>
-        <p id="inquiry-empty" class="text-gray-600 text-center py-6 hidden">No service inquiries.</p>
+        <p id="confirmed-empty" class="text-gray-600 text-center py-6 hidden">No confirmed jobs.</p>
       </div>
       
-      <div id="panel-question" class="tab-panel">
-        <div id="question-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div id="panel-new" class="tab-panel">
+        <nav class="flex space-x-4 mb-4" id="sub-tab-nav">
+          <button class="tab active" data-tab="schedule">
+            Schedule Requests <span id="schedule-count" class="ml-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+          </button>
+          <button class="tab" data-tab="question">
+            Inquiries & Questions <span id="question-count" class="ml-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+          </button>
+        </nav>
+        
+        <div id="sub-tab-content">
+          <div id="panel-schedule" class="tab-panel active">
+            <div id="schedule-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              </div>
+            <p id="schedule-empty" class="text-gray-600 text-center py-6 hidden">No pending schedule requests.</p>
           </div>
-        <p id="question-empty" class="text-gray-600 text-center py-6 hidden">No general questions.</p>
+          <div id="panel-question" class="tab-panel">
+            <div id="question-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              </div>
+            <p id="question-empty" class="text-gray-600 text-center py-6 hidden">No new inquiries or questions.</p>
+          </div>
+        </div>
       </div>
-    </div>
 
+      <div id="panel-calendar" class="tab-panel">
+        <div id="calendar">
+          </div>
+      </div>
+
+    </div>
   </div>
 
   <script src="/js/admin.js" defer></script>

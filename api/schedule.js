@@ -140,23 +140,30 @@ exports.submitAppointment = async (req, res) => {
 
 /**
  * PROTECTED - GET /api/schedule
- * --- UPDATED --- Sorts jobs by status
+ * --- UPDATED --- Sorts jobs by new priority
  */
 exports.getAppointments = async (req, res) => {
   try {
     const appointments = await getAppointments();
 
+    // Define the sort order priority for statuses
+    const statusPriority = {
+      'Work in Progress': 1,
+      'Confirmed': 2,
+      'Pending': 3,
+    };
+
     // Sort the appointments
     appointments.sort((a, b) => {
-      // 1. "Work in Progress" always comes first
-      if (a.status === 'Work in Progress' && b.status !== 'Work in Progress') {
-        return -1; // a comes first
-      }
-      if (a.status !== 'Work in Progress' && b.status === 'Work in Progress') {
-        return 1; // b comes first
+      // 1. Sort by Status Priority
+      const priorityA = statusPriority[a.status] || 99;
+      const priorityB = statusPriority[b.status] || 99;
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB; // Lower priority number comes first
       }
 
-      // 2. For all other jobs, sort by newest (receivedAt)
+      // 2. If status is the same, sort by newest (receivedAt)
       return new Date(b.receivedAt) - new Date(a.receivedAt);
     });
 
@@ -170,10 +177,15 @@ exports.getAppointments = async (req, res) => {
 exports.confirmAppointment = async (req, res) => {
   try {
     const { id } = req.params;
+    // --- UPDATED: Expecting a full ISO date string ---
     const { confirmedDate } = req.body;
+    if (!confirmedDate) {
+      return res.status(400).json({ message: 'Confirmed date is required' });
+    }
     const appointments = await getAppointments();
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
+        // Set status to Confirmed and save the proper date
         return { ...appt, status: 'Confirmed', confirmedDate: confirmedDate };
       }
       return appt;
@@ -236,4 +248,3 @@ exports.deleteJob = async (req, res) => {
     res.status(500).json({ message: 'Server error.' });
   }
 };
-
