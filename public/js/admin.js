@@ -133,6 +133,12 @@ async function confirmAppointment(id) {
 
 
 // --- Universal Card Rendering Function ---
+/**
+ * --- BUG FIX ---
+ * This function was buggy. It's now rewritten to be much clearer.
+ * It no longer takes `cardType` as a parameter, it determines
+ * everything from the `appt` object itself.
+ */
 function renderAppointmentCard(appt) {
   
   // --- Determine Card Type ---
@@ -149,7 +155,6 @@ function renderAppointmentCard(appt) {
     `;
   }).join('');
   
-  // --- UPDATED: Button text is clearer ---
   const assignButtonText = (isQuestionType && appt.status === 'Pending') ? 'Assign & Confirm' : 'Save Assignments';
   
   const assignHtml = `
@@ -165,10 +170,13 @@ function renderAppointmentCard(appt) {
   // --- Block 2: Build Card-Specific HTML ---
   let statusColor, cardDetailsHtml, statusHtml, footerHtml;
 
-  if (isQuestionType && appt.status === 'Pending') {
-    // --- This is a "Pending Question" card ---
-    statusColor = 'bg-blue-100 text-blue-800';
-    
+  // Set Status Color
+  statusColor = 'bg-blue-100 text-blue-800'; // Pending
+  if (appt.status === 'Confirmed') statusColor = 'bg-green-100 text-green-800';
+  else if (appt.status === 'Work in Progress') statusColor = 'bg-yellow-100 text-yellow-800';
+
+  // Set Card Details
+  if (isQuestionType) {
     cardDetailsHtml = `
       <div><strong class="text-gray-600 block">Contact:</strong><p>${appt.email}</p><p>${appt.phone}</p></div>
       <div class="bg-gray-50 p-4 rounded-md col-span-2">
@@ -176,64 +184,60 @@ function renderAppointmentCard(appt) {
         <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
       </div>
     `;
-    statusHtml = ''; // No confirm/status section
+  } else {
+    cardDetailsHtml = `
+      <div><strong class="text-gray-600 block">Contact:</strong><p>${appt.email}</p><p>${appt.phone}</p></div>
+      <div><strong class="text-gray-600 block">Vehicle:</strong><p>${appt.car} (${appt.estimatedTime})</p></div>
+      <div><strong class="text-gray-600 block">Subject:</strong><p>${appt.subject}</p></div>
+      <div><strong class="text-gray-600 block">Availability:</strong><p>${appt.availability}</p></div>
+      <div class="bg-gray-50 p-4 rounded-md col-span-2">
+        <strong class="text-gray-600 block mb-1">Message:</strong>
+        <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
+      </div>
+    `;
+  }
+
+  // Set Status/Confirm HTML
+  statusHtml = ''; // Default to empty
+  if (appt.status === 'Pending' && !isQuestionType) {
+    // Only show "Confirm" for non-questions
+    statusHtml = `
+      <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
+      <div class="flex gap-2">
+        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm">
+        <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
+          Confirm & Save
+        </button>
+      </div>
+    `;
+  } else if (appt.status === 'Confirmed') {
+    const friendlyDate = appt.confirmedDate ? new Date(appt.confirmedDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
+    // Hide date if it's a question (since they don't have one)
+    const dateDisplay = (isQuestionType || !appt.confirmedDate) ? '' : `<p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>`;
+    
+    statusHtml = `
+      ${dateDisplay}
+      <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
+        Start Work
+      </button>
+    `;
+  } else if (appt.status === 'Work in Progress') {
+    statusHtml = `
+      <p class="text-sm text-yellow-700 font-semibold">Job is currently in progress.</p>
+      <button onclick="updateStatus('${appt.id}', 'Confirmed')" class="mt-2 w-full bg-gray-400 text-gray-900 font-bold py-2 px-3 rounded-lg hover:bg-gray-500 transition text-sm">
+        Pause Work
+      </button>
+    `;
+  }
+  
+  // Set Footer HTML
+  if (isQuestionType && appt.status === 'Pending') {
     footerHtml = `
       <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
         Delete
       </button>
     `;
-
   } else {
-    // --- This is a "Job" card (WIP, Confirmed, or Pending Job) ---
-    // (This now also includes "Confirmed Questions")
-    statusColor = 'bg-blue-100 text-blue-800'; // Pending
-    if (appt.status === 'Confirmed') statusColor = 'bg-green-100 text-green-800';
-    else if (appt.status === 'Work in Progress') statusColor = 'bg-yellow-100 text-yellow-800';
-
-    // Build details. If it's a question, some fields will be blank.
-    cardDetailsHtml = `
-      <div><strong class="text-gray-600 block">Contact:</strong><p>${appt.email}</p><p>${appt.phone}</p></div>
-      ${!isQuestionType ? `<div><strong class="text-gray-600 block">Vehicle:</strong><p>${appt.car} (${appt.estimatedTime})</p></div>` : ''}
-      <div><strong class="text-gray-600 block">Subject:</strong><p>${appt.subject}</p></div>
-      ${!isQuestionType ? `<div><strong class="text-gray-600 block">Availability:</strong><p>${appt.availability}</p></div>` : ''}
-      <div class="bg-gray-50 p-4 rounded-md col-span-2">
-        <strong class="text-gray-600 block mb-1">Message:</strong>
-        <p class="text-gray-800 whitespace-pre-wrap">${appt.message}</p>
-      </div>
-    `;
-
-    // Full status/confirm section
-    if (appt.status === 'Pending') {
-      statusHtml = `
-        <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
-        <div class="flex gap-2">
-          <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm">
-          <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
-            Confirm & Save
-          </button>
-        </div>
-      `;
-    } else if (appt.status === 'Confirmed') {
-      const friendlyDate = appt.confirmedDate ? new Date(appt.confirmedDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
-      // Hide date if it's a question (since they don't have one)
-      const dateDisplay = (isQuestionType || !appt.confirmedDate) ? '' : `<p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>`;
-      
-      statusHtml = `
-        ${dateDisplay}
-        <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
-          Start Work
-        </button>
-      `;
-    } else if (appt.status === 'Work in Progress') {
-      statusHtml = `
-        <p class="text-sm text-yellow-700 font-semibold">Job is currently in progress.</p>
-        <button onclick="updateStatus('${appt.id}', 'Confirmed')" class="mt-2 w-full bg-gray-400 text-gray-900 font-bold py-2 px-3 rounded-lg hover:bg-gray-500 transition text-sm">
-          Pause Work
-        </button>
-      `;
-    }
-    
-    // Full footer
     footerHtml = `
       <button onclick="deleteJob('${appt.id}', 'complete')" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition text-sm">
         ${isQuestionType ? 'Mark as Responded' : 'Mark as Completed'}
@@ -396,10 +400,7 @@ const fetchAppointments = async () => {
     // 5. Render "Confirmed" section
     confirmedCount.textContent = confirmedJobs.length;
     if (confirmedJobs.length > 0) {
-      confirmedJobs.forEach(appt => {
-        const isQuestion = appt.subject === 'General Question' || appt.subject === 'Service Inquiry';
-        confirmedList.appendChild(renderAppointmentCard(appt, isQuestion ? 'question' : 'job'));
-      });
+      confirmedJobs.forEach(appt => confirmedList.appendChild(renderAppointmentCard(appt)));
     } else {
       confirmedEmpty.style.display = 'block';
     }
@@ -407,7 +408,7 @@ const fetchAppointments = async () => {
     // 6. Render "Schedule" sub-tab
     scheduleCount.textContent = scheduleJobs.length;
     if (scheduleJobs.length > 0) {
-      scheduleJobs.forEach(appt => scheduleList.appendChild(renderAppointmentCard(appt, 'job')));
+      scheduleJobs.forEach(appt => scheduleList.appendChild(renderAppointmentCard(appt)));
     } else {
       scheduleEmpty.style.display = 'block';
     }
@@ -415,7 +416,7 @@ const fetchAppointments = async () => {
     // 7. Render "Question" sub-tab
     questionCount.textContent = questionJobs.length;
     if (questionJobs.length > 0) {
-      questionJobs.forEach(appt => questionList.appendChild(renderAppointmentCard(appt, 'question')));
+      questionJobs.forEach(appt => questionList.appendChild(renderAppointmentCard(appt)));
     } else {
       questionEmpty.style.display = 'block';
     }
