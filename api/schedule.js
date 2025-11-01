@@ -31,7 +31,7 @@ const getEstimatedTime = (carType) => {
   }
 };
 
-// --- HTML Response Functions (No Change) ---
+// --- HTML Response Functions ---
 const createSuccessHtml = (name) => {
   return `
     <!DOCTYPE html>
@@ -88,14 +88,24 @@ const createErrorHtml = (message) => {
  * PUBLIC - POST /api/schedule
  */
 exports.submitAppointment = async (req, res) => {
+  // --- DEBUG LOGGING ---
+  console.log('--- New Appointment Submission ---');
   try {
+    // This is the most important log
+    console.log('Form Body Received:', req.body);
+
     const { name, email, car, subject, phone, availability, message } = req.body;
 
     if (!name || !email || !car || !subject) {
-      return res.status(400).send(createErrorHtml('Missing required fields'));
+      // Log if validation fails
+      console.error('Validation Failed: Missing required fields.');
+      console.error({ name, email, car, subject });
+      return res.status(400).send(createErrorHtml('Missing required fields. Please go back and fill out the form.'));
     }
-
+    
+    console.log('Validation Passed.');
     const appointments = await getAppointments();
+    console.log(`Found ${appointments.length} existing appointments.`);
 
     const newAppointment = {
       id: Date.now().toString(),
@@ -109,18 +119,24 @@ exports.submitAppointment = async (req, res) => {
       message: message || 'N/A',
       estimatedTime: getEstimatedTime(car),
       status: 'Pending',
-      confirmedDate: null,
-      assignedTo: null, // --- NEW FIELD ---
+      confirmedDate: null, 
+      assignedTo: null,
     };
 
     appointments.push(newAppointment);
+    
+    console.log('Attempting to save...');
     await saveAppointments(appointments);
+    console.log('Save successful! New total: ' + appointments.length);
 
     res.status(201).send(createSuccessHtml(name));
 
   } catch (error) {
-    console.error(error);
-    res.status(500).send(createErrorHtml('Server error. Please try again later.'));
+    // --- This will catch any errors from get/save ---
+    console.error('--- !! SERVER ERROR !! ---');
+    console.error(error.message);
+    console.error(error.stack); // Full error details
+    res.status(500).send(createErrorHtml('Server error. We have been notified. Please try again later.'));
   }
 };
 
@@ -161,7 +177,7 @@ exports.confirmAppointment = async (req, res) => {
     });
 
     if (!appointmentFound) {
-      return res.status(4404).json({ message: 'Appointment not found' });
+      return res.status(404).json({ message: 'Appointment not found' });
     }
 
     await saveAppointments(updatedAppointments);
@@ -173,10 +189,8 @@ exports.confirmAppointment = async (req, res) => {
   }
 };
 
-// --- NEW HANDLER ---
 /**
  * PROTECTED - POST /api/schedule/assign/:id
- * Allows admin to assign a job to a team member.
  */
 exports.assignJob = async (req, res) => {
   try {
@@ -211,21 +225,16 @@ exports.assignJob = async (req, res) => {
   }
 };
 
-// --- NEW HANDLER ---
 /**
  * PROTECTED - DELETE /api/schedule/:id
- * Allows admin to delete a job (or mark as complete).
  */
 exports.deleteJob = async (req, res) => {
   try {
     const { id } = req.params;
-
     const appointments = await getAppointments();
-    
     const updatedAppointments = appointments.filter(appt => appt.id !== id);
 
     if (appointments.length === updatedAppointments.length) {
-      // No appointment was found or deleted
       return res.status(404).json({ message: 'Appointment not found' });
     }
 
@@ -237,4 +246,3 @@ exports.deleteJob = async (req, res) => {
     res.status(500).json({ message: 'Server error while deleting job.' });
   }
 };
-
