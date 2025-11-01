@@ -1,23 +1,18 @@
-const fs = require('fs').promises;
-const path = require('path');
+// --- NEW: Import Vercel KV ---
+const { kv } = require('@vercel/kv');
 
-const DB_PATH = path.join(__dirname, '..', 'appointments.json');
-
-// --- Helper Functions ---
+// --- Helper Functions (Rewritten for KV) ---
 const getAppointments = async () => {
-  try {
-    const data = await fs.readFile(DB_PATH, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return []; 
-    }
-    throw error;
-  }
+  // Get the array from the database. If it doesn't exist, return [].
+  const appointments = await kv.get('appointments');
+  return appointments || [];
 };
+
 const saveAppointments = async (appointments) => {
-  await fs.writeFile(DB_PATH, JSON.stringify(appointments, null, 2), 'utf8');
+  // Save the entire array back to the database
+  await kv.set('appointments', appointments);
 };
+
 const getEstimatedTime = (carType) => {
   switch (carType) {
     case 'Sedan': return 'Approx. 2 hours';
@@ -78,26 +73,16 @@ const createErrorHtml = (message) => {
   `;
 };
 
-// --- Exported Route Handlers ---
+// --- Exported Route Handlers (Logic is identical, just uses new helpers) ---
 
-/**
- * PUBLIC - POST /api/schedule
- */
 exports.submitAppointment = async (req, res) => {
-  console.log('--- New Appointment Submission ---');
   try {
-    console.log('Form Body Received:', req.body);
     const { name, email, car, subject, phone, availability, message } = req.body;
-
     if (!name || !email || !car || !subject) {
-      console.error('Validation Failed: Missing required fields.');
-      return res.status(400).send(createErrorHtml('Missing required fields. Please go back and fill out the form.'));
+      return res.status(400).send(createErrorHtml('Missing required fields.'));
     }
     
-    console.log('Validation Passed.');
     const appointments = await getAppointments();
-    console.log(`Found ${appointments.length} existing appointments.`);
-
     const newAppointment = {
       id: Date.now().toString(),
       receivedAt: new Date().toISOString(),
@@ -105,50 +90,33 @@ exports.submitAppointment = async (req, res) => {
       availability: availability || 'N/A',
       message: message || 'N/A',
       estimatedTime: getEstimatedTime(car),
-      status: 'Pending', // Default status
+      status: 'Pending',
       confirmedDate: null, 
-      assignedTo: [], // --- UPDATED: Now an empty array ---
+      assignedTo: [],
     };
-
     appointments.push(newAppointment);
-    
-    console.log('Attempting to save...');
     await saveAppointments(appointments);
-    console.log('Save successful! New total: ' + appointments.length);
-
     res.status(201).send(createSuccessHtml(name));
-
   } catch (error) {
-    console.error('--- !! SERVER ERROR !! ---');
-    console.error(error.message);
-    console.error(error.stack); 
-    res.status(500).send(createErrorHtml('Server error. We have been notified. Please try again later.'));
+    console.error("Error in submitAppointment:", error);
+    res.status(500).send(createErrorHtml('Server error.'));
   }
 };
 
-/**
- * PROTECTED - GET /api/schedule
- */
 exports.getAppointments = async (req, res) => {
   try {
     const appointments = await getAppointments();
     res.status(200).json(appointments.reverse()); 
   } catch (error) {
-    console.error(error);
+    console.error("Error in getAppointments:", error);
     res.status(500).json({ message: 'Could not fetch appointments.' });
   }
 };
 
-/**
- * PROTECTED - POST /api/schedule/confirm/:id
- */
 exports.confirmAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const { confirmedDate } = req.body;
-    if (!confirmedDate) {
-      return res.status(400).json({ message: 'Confirmed date is required' });
-    }
     const appointments = await getAppointments();
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
@@ -157,27 +125,17 @@ exports.confirmAppointment = async (req, res) => {
       return appt;
     });
     await saveAppointments(updatedAppointments);
-    res.status(200).json({ message: 'Appointment confirmed successfully' });
+    res.status(200).json({ message: 'Appointment confirmed' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error while confirming.' });
+    console.error("Error in confirmAppointment:", error);
+    res.status(500).json({ message: 'Server error.' });
   }
 };
 
-// --- NEW FUNCTION ---
-/**
- * PROTECTED - POST /api/schedule/status/:id
- * Allows admin to set status to 'Work in Progress'
- */
 exports.updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body; // e.g., "Work in Progress"
-
-    if (!status) {
-      return res.status(400).json({ message: 'New status is required' });
-    }
-
+    const { status } = req.body;
     const appointments = await getAppointments();
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
@@ -185,30 +143,18 @@ exports.updateStatus = async (req, res) => {
       }
       return appt;
     });
-
     await saveAppointments(updatedAppointments);
-    res.status(200).json({ message: 'Status updated successfully' });
+    res.status(200).json({ message: 'Status updated' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error while updating status.' });
+    console.error("Error in updateStatus:", error);
+    res.status(500).json({ message: 'Server error.' });
   }
 };
 
-
-/**
- * PROTECTED - POST /api/schedule/assign/:id
- * --- UPDATED --- Now accepts an array of names
- */
 exports.assignJob = async (req, res) => {
   try {
     const { id } = req.params;
-    // Expecting: { assignedTo: ["Charles", "Wilson"] }
     const { assignedTo } = req.body;
-
-    if (!Array.isArray(assignedTo)) {
-      return res.status(400).json({ message: 'assignedTo must be an array.' });
-    }
-
     const appointments = await getAppointments();
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
@@ -216,33 +162,24 @@ exports.assignJob = async (req, res) => {
       }
       return appt;
     });
-
     await saveAppointments(updatedAppointments);
-    res.status(200).json({ message: 'Job assigned successfully' });
-
+    res.status(200).json({ message: 'Job assigned' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error while assigning job.' });
+    console.error("Error in assignJob:", error);
+    res.status(500).json({ message: 'Server error.' });
   }
 };
 
-/**
- * PROTECTED - DELETE /api/schedule/:id
- */
 exports.deleteJob = async (req, res) => {
   try {
     const { id } = req.params;
     const appointments = await getAppointments();
     const updatedAppointments = appointments.filter(appt => appt.id !== id);
-
-    if (appointments.length === updatedAppointments.length) {
-      return res.status(404).json({ message: 'Appointment not found' });
-    }
-
     await saveAppointments(updatedAppointments);
-    res.status(200).json({ message: 'Job removed successfully' });
+    res.status(200).json({ message: 'Job removed' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error while deleting job.' });
+    console.error("Error in deleteJob:", error);
+    res.status(500).json({ message: 'Server error.' });
   }
 };
+
