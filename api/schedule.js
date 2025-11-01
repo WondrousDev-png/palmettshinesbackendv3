@@ -11,12 +11,14 @@ console.log("---------------------------------");
 // --- END DEBUGGING ---
 
 // --- NEW: Resilient Connection ---
-if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDISPASSWORD) {
+// --- !! FIX: Changed REDISPASSWORD to REDIS_PASSWORD !! ---
+if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDIS_PASSWORD) {
   // If variables exist, connect to the real database.
   redis = new Redis({
     host: process.env.REDISHOST,
     port: process.env.REDISPORT,
-    password: process.env.REDISPASSWORD,
+    // --- !! FIX: Changed REDISPASSWORD to REDIS_PASSWORD !! ---
+    password: process.env.REDIS_PASSWORD,
     maxRetriesPerRequest: null
   });
   redis.on('connect', () => console.log('Connected to Redis database!'));
