@@ -1,7 +1,7 @@
 {
-  "name": "palmetto-shine-railway",
+  "name": "palmetto-shine-koyeb",
   "version": "1.0.0",
-  "description": "Backend for car detailing scheduler on Railway.",
+  "description": "Backend for car detailing scheduler on Koyeb.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -11,6 +11,6 @@
     "express": "^4.18.2",
     "express-basic-auth": "^1.2.1",
     "express-rate-limit": "^7.1.5",
-    "ioredis": "^5.4.1"
+    "@upstash/redis": "^1.31.6"
   }
 }

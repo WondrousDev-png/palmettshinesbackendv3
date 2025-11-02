@@ -208,12 +208,15 @@ function renderAppointmentCard(appt) {
 
   // --- Block 3: Status/Confirm/Reschedule HTML ---
   statusHtml = ''; // Default to empty
+  // Get a pre-filled value for the date picker (for rescheduling)
+  const isoDate = appt.confirmedDate ? new Date(appt.confirmedDate).toISOString().slice(0, 16) : '';
+
   if (appt.status === 'Pending' && !isQuestionType) {
     // Only show "Confirm" for non-questions
     statusHtml = `
       <div id="confirm-section-${appt.id}">
         <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
-        <div class="flex gap-2">
+        <div class="flex flex-col sm:flex-row gap-2">
           <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm">
           <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
             Confirm & Save
@@ -235,8 +238,8 @@ function renderAppointmentCard(appt) {
       </div>
       <div id="reschedule-block-${appt.id}" style="display: none;">
         <p class="text-sm text-gray-600 mb-2">Select new date & time:</p>
-        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm mb-2" value="${appt.confirmedDate}">
-        <div class="flex gap-2">
+        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm mb-2" value="${isoDate}">
+        <div class="flex flex-col sm:flex-row gap-2">
           <button onclick="confirmAppointment('${appt.id}')" class="w-full bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm">
             Save New Date
           </button>
@@ -257,8 +260,8 @@ function renderAppointmentCard(appt) {
       </div>
       <div id="reschedule-block-${appt.id}" style="display: none;">
         <p class="text-sm text-gray-600 mb-2">Select new date & time:</p>
-        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm mb-2" value="${appt.confirmedDate}">
-        <div class="flex gap-2">
+        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm mb-2" value="${isoDate}">
+        <div class="flex flex-col sm:flex-row gap-2">
           <button onclick="confirmAppointment('${appt.id}')" class="w-full bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm">
             Save New Date
           </button>

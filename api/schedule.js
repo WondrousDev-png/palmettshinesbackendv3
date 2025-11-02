@@ -1,20 +1,18 @@
-const Redis = require('ioredis');
+const { Redis } = require('@upstash/redis');
 
 let redis;
 
-// --- Resilient Connection ---
-if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDIS_PASSWORD) {
+// --- NEW: Resilient Connection for Upstash/Koyeb ---
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
   redis = new Redis({
-    host: process.env.REDISHOST,
-    port: process.env.REDISPORT,
-    password: process.env.REDIS_PASSWORD,
-    maxRetriesPerRequest: null
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
   });
-  redis.on('connect', () => console.log('Connected to Redis database!'));
-  redis.on('error', (err) => console.error('Redis Connection Error:', err));
+  console.log('Connected to Upstash Redis database!');
 } else {
-  console.warn('--- REDIS ENV VARS NOT FOUND ---');
+  console.warn('--- UPSTASH REDIS ENV VARS NOT FOUND ---');
   console.warn('App is running in "mock" database mode.');
+  console.warn('Please add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to your Koyeb service.');
   
   let mockAppointments = [];
   redis = {
@@ -30,7 +28,7 @@ if (process.env.REDISHOST && process.env.REDISPORT && process.env.REDIS_PASSWORD
   };
 }
 
-// --- Helper Functions (Rewritten for Redis) ---
+// --- Helper Functions (Syntax is the same for Upstash SDK) ---
 const getAppointments = async () => {
   const data = await redis.get('appointments');
   if (!data) {
@@ -60,7 +58,7 @@ const createSuccessHtml = (name) => {
     <html lang="en">
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link href="https://fonts.googleapis.com/css2?family/Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
       <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
         .container { padding: 2rem; background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -138,35 +136,22 @@ exports.submitAppointment = async (req, res) => {
   }
 };
 
-/**
- * PROTECTED - GET /api/schedule
- * --- UPDATED --- Sorts jobs by new priority
- */
 exports.getAppointments = async (req, res) => {
   try {
     const appointments = await getAppointments();
-
-    // Define the sort order priority for statuses
     const statusPriority = {
       'Work in Progress': 1,
       'Confirmed': 2,
       'Pending': 3,
     };
-
-    // Sort the appointments
     appointments.sort((a, b) => {
-      // 1. Sort by Status Priority
       const priorityA = statusPriority[a.status] || 99;
       const priorityB = statusPriority[b.status] || 99;
-      
       if (priorityA !== priorityB) {
-        return priorityA - priorityB; // Lower priority number comes first
+        return priorityA - priorityB;
       }
-
-      // 2. If status is the same, sort by newest (receivedAt)
       return new Date(b.receivedAt) - new Date(a.receivedAt);
     });
-
     res.status(200).json(appointments); 
   } catch (error) {
     console.error("Error in getAppointments:", error);
@@ -174,26 +159,19 @@ exports.getAppointments = async (req, res) => {
   }
 };
 
-/**
- * PROTECTED - POST /api/schedule/confirm/:id
- * --- UPDATED --- Now saves assignedTo array at the same time
- */
 exports.confirmAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { confirmedDate, assignedTo } = req.body; // Now receives both
-    
+    const { confirmedDate, assignedTo } = req.body;
     if (!confirmedDate) {
       return res.status(400).json({ message: 'Confirmed date is required' });
     }
     if (!Array.isArray(assignedTo)) {
        return res.status(400).json({ message: 'assignedTo must be an array' });
     }
-
     const appointments = await getAppointments();
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
-        // Set status, date, AND assignments all at once
         return { 
           ...appt, 
           status: 'Confirmed', 
@@ -235,17 +213,32 @@ exports.assignJob = async (req, res) => {
     const { id } = req.params;
     const { assignedTo } = req.body;
     const appointments = await getAppointments();
+    
     const updatedAppointments = appointments.map(appt => {
       if (appt.id === id) {
-        return { ...appt, assignedTo: assignedTo };
+        const isQuestion = appt.subject === 'General Question' || appt.subject === 'Service Inquiry';
+        const isPending = appt.status === 'Pending';
+
+        if (isQuestion && isPending && assignedTo.length > 0) {
+          // It's a question, so "assigning" means confirming it for action
+          return { 
+            ...appt, 
+            assignedTo: assignedTo,
+            status: 'Confirmed' // <-- This moves it to the "Confirmed" tab
+          };
+        } else {
+          // It's a regular job, just update the team
+          return { ...appt, assignedTo: assignedTo };
+        }
       }
       return appt;
     });
+
     await saveAppointments(updatedAppointments);
-    res.status(200).json({ message: 'Job assigned' });
+    res.status(200).json({ message: 'Job assigned successfully' });
   } catch (error) {
     console.error("Error in assignJob:", error);
-    res.status(500).json({ message: 'Server error.' });
+    res.status(500).json({ message: 'Server error while assigning job.' });
   }
 };
 
