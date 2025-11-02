@@ -43,7 +43,7 @@ const summaryDate = document.getElementById('day-summary-date');
 const summaryList = document.getElementById('day-summary-list');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 
-// --- NEW: Today Summary Elements ---
+// --- Today Summary Elements ---
 const todaySummaryContainer = document.getElementById('today-summary-container');
 const todaySummaryList = document.getElementById('today-summary-list');
 const todaySummaryEmpty = document.getElementById('today-summary-empty');
@@ -103,6 +103,7 @@ async function deleteJob(id, action) {
 }
 
 async function confirmAppointment(id) {
+  // This function is now used for BOTH confirming AND rescheduling
   const dateInput = document.getElementById(`date-input-${id}`);
   const confirmedDate = dateInput.value;
   
@@ -124,24 +125,32 @@ async function confirmAppointment(id) {
         assignedTo: assignedTo 
       })
     });
-    if (!response.ok) throw new Error('Failed to confirm');
+    if (!response.ok) throw new Error('Failed to confirm/reschedule');
     fetchAppointments();
   } catch (error) {
     alert('Error: ' + error.message);
   }
 }
 
+// --- NEW: Reschedule UI Toggle ---
+function toggleReschedule(id) {
+  const statusBlock = document.getElementById(`status-block-${id}`);
+  const rescheduleBlock = document.getElementById(`reschedule-block-${id}`);
+  
+  const isHidden = rescheduleBlock.style.display === 'none';
+  if (isHidden) {
+    statusBlock.style.display = 'none';
+    rescheduleBlock.style.display = 'block';
+  } else {
+    statusBlock.style.display = 'block';
+    rescheduleBlock.style.display = 'none';
+  }
+}
+
 
 // --- Universal Card Rendering Function ---
-/**
- * --- BUG FIX ---
- * This function was buggy. It's now rewritten to be much clearer.
- * It no longer takes `cardType` as a parameter, it determines
- * everything from the `appt` object itself.
- */
 function renderAppointmentCard(appt) {
   
-  // --- Determine Card Type ---
   const isQuestionType = appt.subject === 'General Question' || appt.subject === 'Service Inquiry';
 
   // --- Block 1: Build Assignment HTML ---
@@ -155,7 +164,6 @@ function renderAppointmentCard(appt) {
     `;
   }).join('');
   
-  // --- UPDATED: Button text is clearer ---
   const assignButtonText = (isQuestionType && appt.status === 'Pending') ? 'Assign & Confirm' : 'Save Assignments';
   
   const assignHtml = `
@@ -198,40 +206,71 @@ function renderAppointmentCard(appt) {
     `;
   }
 
-  // Set Status/Confirm HTML
+  // --- Block 3: Status/Confirm/Reschedule HTML ---
   statusHtml = ''; // Default to empty
   if (appt.status === 'Pending' && !isQuestionType) {
     // Only show "Confirm" for non-questions
     statusHtml = `
-      <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
-      <div class="flex gap-2">
-        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm">
-        <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
-          Confirm & Save
-        </button>
+      <div id="confirm-section-${appt.id}">
+        <p class="text-sm text-gray-600 mb-2">Confirm this appointment:</p>
+        <div class="flex gap-2">
+          <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm">
+          <button onclick="confirmAppointment('${appt.id}')" class="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm whitespace-nowrap">
+            Confirm & Save
+          </button>
+        </div>
       </div>
     `;
   } else if (appt.status === 'Confirmed') {
     const friendlyDate = appt.confirmedDate ? new Date(appt.confirmedDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
-    // Hide date if it's a question (since they don't have one)
     const dateDisplay = (isQuestionType || !appt.confirmedDate) ? '' : `<p class="text-sm text-green-700 font-semibold">Confirmed for: ${friendlyDate}</p>`;
     
     statusHtml = `
-      ${dateDisplay}
-      <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
-        Start Work
-      </button>
+      <div id="status-block-${appt.id}">
+        ${dateDisplay}
+        <button onclick="updateStatus('${appt.id}', 'Work in Progress')" class="mt-2 w-full bg-yellow-500 text-yellow-900 font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition text-sm">
+          Start Work
+        </button>
+        ${!isQuestionType ? `<button onclick="toggleReschedule('${appt.id}')" class="mt-2 w-full bg-gray-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-gray-600 transition text-sm">Reschedule</button>` : ''}
+      </div>
+      <div id="reschedule-block-${appt.id}" style="display: none;">
+        <p class="text-sm text-gray-600 mb-2">Select new date & time:</p>
+        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm mb-2" value="${appt.confirmedDate}">
+        <div class="flex gap-2">
+          <button onclick="confirmAppointment('${appt.id}')" class="w-full bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm">
+            Save New Date
+          </button>
+          <button onclick="toggleReschedule('${appt.id}')" class="w-full bg-gray-300 text-gray-800 font-bold py-2 px-3 rounded-lg hover:bg-gray-400 transition text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
     `;
   } else if (appt.status === 'Work in Progress') {
     statusHtml = `
-      <p class="text-sm text-yellow-700 font-semibold">Job is currently in progress.</p>
-      <button onclick="updateStatus('${appt.id}', 'Confirmed')" class="mt-2 w-full bg-gray-400 text-gray-900 font-bold py-2 px-3 rounded-lg hover:bg-gray-500 transition text-sm">
-        Pause Work
-      </button>
+      <div id="status-block-${appt.id}">
+        <p class="text-sm text-yellow-700 font-semibold">Job is currently in progress.</p>
+        <button onclick="updateStatus('${appt.id}', 'Confirmed')" class="mt-2 w-full bg-gray-400 text-gray-900 font-bold py-2 px-3 rounded-lg hover:bg-gray-500 transition text-sm">
+          Pause Work
+        </button>
+        ${!isQuestionType ? `<button onclick="toggleReschedule('${appt.id}')" class="mt-2 w-full bg-gray-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-gray-600 transition text-sm">Reschedule</button>` : ''}
+      </div>
+      <div id="reschedule-block-${appt.id}" style="display: none;">
+        <p class="text-sm text-gray-600 mb-2">Select new date & time:</p>
+        <input type="datetime-local" id="date-input-${appt.id}" class="form-input block w-full rounded-lg border-gray-300 shadow-sm text-sm mb-2" value="${appt.confirmedDate}">
+        <div class="flex gap-2">
+          <button onclick="confirmAppointment('${appt.id}')" class="w-full bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 transition text-sm">
+            Save New Date
+          </button>
+          <button onclick="toggleReschedule('${appt.id}')" class="w-full bg-gray-300 text-gray-800 font-bold py-2 px-3 rounded-lg hover:bg-gray-400 transition text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
     `;
   }
   
-  // Set Footer HTML
+  // --- Block 4: Set Footer HTML ---
   if (isQuestionType && appt.status === 'Pending') {
     footerHtml = `
       <button onclick="deleteJob('${appt.id}', 'delete')" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm">
@@ -249,7 +288,7 @@ function renderAppointmentCard(appt) {
     `;
   }
 
-  // --- Block 3: Assemble the Card ---
+  // --- Block 5: Assemble the Card ---
   const card = document.createElement('div');
   card.className = 'card overflow-hidden flex flex-col';
   card.innerHTML = `
@@ -268,7 +307,7 @@ function renderAppointmentCard(appt) {
       
       <div class="space-y-4">
         ${statusHtml ? `
-          <div id="confirm-section-${appt.id}" class="mt-4 pt-4 border-t border-gray-200">
+          <div class="mt-4 pt-4 border-t border-gray-200">
             ${statusHtml}
           </div>
         ` : ''}
@@ -286,7 +325,7 @@ function renderAppointmentCard(appt) {
   return card;
 }
 
-// --- NEW: Today's Summary Function ---
+// --- Today's Summary Function ---
 function renderTodaySummary(appointments) {
   const today = new Date().toDateString();
   
@@ -387,7 +426,7 @@ const fetchAppointments = async () => {
       }
     }
 
-    // --- NEW: 3.5. Render Today's Summary ---
+    // --- 3.5. Render Today's Summary ---
     renderTodaySummary(allAppointments);
 
     // 4. Render "Work in Progress" section
