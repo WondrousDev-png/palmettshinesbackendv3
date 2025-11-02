@@ -122,25 +122,25 @@
     <div class="border-b border-gray-200 mb-6">
       <!-- This is the line that was edited -->
       <nav class="flex flex-wrap -mb-px" id="tab-nav">
-        <button class="tab active mr-2" data-tab="wip">
+        <button class="tab active mr-1 sm:mr-2" data-tab="wip">
           <div class="flex items-center">
             <span id="wip-count" class="mr-1 bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             <span>Work in Progress</span>
           </div>
         </button>
-        <button class="tab mr-2" data-tab="confirmed">
+        <button class="tab mr-1 sm:mr-2" data-tab="confirmed">
           <div class="flex items-center">
             <span id="confirmed-count" class="mr-1 bg-green-200 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             <span>Confirmed & Assigned</span>
           </div>
         </button>
-        <button class="tab mr-2" data-tab="new">
+        <button class="tab mr-1 sm:mr-2" data-tab="new">
           <div class="flex items-center">
             <span id="new-count" class="mr-1 bg-blue-200 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             <span>New Requests</span>
           </div>
         </button>
-        <button class="tab ml-auto" data-tab="calendar">
+        <button class="tab sm:ml-auto" data-tab="calendar">
           <div class="flex items-center">
             <span>Calendar</span>
           </div>
@@ -163,17 +163,17 @@
       <div id="panel-new" class="tab-panel">
         <!-- This is the second line that was edited -->
         <nav class="flex flex-wrap -mb-px" id="sub-tab-nav">
-          <button class="tab active mr-2" data-tab="schedule">
+          <button class="tab active mr-1 sm:mr-2" data-tab="schedule">
             <div class="flex items-center">
               <span id="schedule-count" class="mr-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
               <span>Schedule Requests</span>
             </div>
           </button>
           <button class="tab" data-tab="question">
-            <div class="flex items-center">
+            <give class="flex items-center">
               <span id="question-count" class="mr-1 bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
               <span>Inquiries & Questions</span>
-            </div>
+            </give>
           </button>
         </nav>
         
@@ -218,3 +218,4 @@
   <script src="/js/admin.js" defer></script>
 </body>
 </html>
+
