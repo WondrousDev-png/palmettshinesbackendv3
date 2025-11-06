@@ -1,7 +1,7 @@
 /*
   This file contains the complete application logic.
-  It uses prompt() for password, and alert()/confirm() for
-  notifications, and includes the mobile-first calendar logic.
+  It replaces alert() and confirm() with non-blocking
+  UI elements and includes the mobile-first calendar logic.
 */
 
 // --- Global Elements ---
@@ -54,10 +54,77 @@ const todaySummaryContainer = document.getElementById('today-summary-container')
 const todaySummaryList = document.getElementById('today-summary-list');
 const todaySummaryEmpty = document.getElementById('today-summary-empty');
 
-// --- REMOVED Notification, Confirmation, & Password Modal Elements ---
+// --- NEW Notification & Confirmation Elements ---
+const toastEl = document.getElementById('toast-notification');
+const toastMessage = document.getElementById('toast-message');
+const confirmModal = document.getElementById('confirm-modal');
+const confirmTitle = document.getElementById('confirm-title');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmBtnOk = document.getElementById('confirm-btn-ok');
+const confirmBtnCancel = document.getElementById('confirm-btn-cancel');
+
+// --- NEW Password Modal Elements ---
+const passwordModal = document.getElementById('password-modal');
+const passwordInput = document.getElementById('password-input');
+const passwordSubmitBtn = document.getElementById('password-submit-btn');
+const passwordError = document.getElementById('password-error');
+
+// --- NEW: Custom Notification Functions ---
+
+/**
+ * Shows a toast notification.
+ * @param {string} message The message to display.
+ * @param {boolean} [isError=true] If true, shows a red error toast. If false, shows a blue info toast.
+ */
+function showToast(message, isError = true) {
+  toastMessage.textContent = message;
+  
+  if (isError) {
+    toastEl.classList.remove('bg-blue-600');
+    toastEl.classList.add('bg-red-600');
+  } else {
+    toastEl.classList.remove('bg-red-600');
+    toastEl.classList.add('bg-blue-600');
+  }
+  
+  toastEl.classList.remove('hidden');
+  setTimeout(() => {
+    toastEl.classList.add('hidden');
+  }, 3000); // Hide after 3 seconds
+}
+
+/**
+ * Shows a confirmation modal.
+ * @param {string} message The message for the confirmation.
+ * @param {string} title The title for the modal.
+ * @returns {Promise<boolean>} A promise that resolves to true if OK, false if Cancel.
+ */
+function showConfirmation(message, title = 'Are you sure?') {
+  confirmTitle.textContent = title;
+  confirmMessage.textContent = message;
+  confirmModal.showModal();
+
+  return new Promise((resolve) => {
+    // Remove old listeners to prevent duplicates
+    const newOkBtn = confirmBtnOk.cloneNode(true);
+    const newCancelBtn = confirmBtnCancel.cloneNode(true);
+    confirmBtnOk.parentNode.replaceChild(newOkBtn, confirmBtnOk);
+    confirmBtnCancel.parentNode.replaceChild(newCancelBtn, confirmBtnCancel);
+    
+    // Add new listeners
+    newOkBtn.addEventListener('click', () => {
+      confirmModal.close();
+      resolve(true);
+    });
+    newCancelBtn.addEventListener('click', () => {
+      confirmModal.close();
+      resolve(false);
+    });
+  });
+}
 
 
-// --- API Call Functions (Reverted to alert/confirm) ---
+// --- API Call Functions (Updated) ---
 
 async function assignJob(id) {
   // This function is for *just* saving assignments
@@ -74,7 +141,7 @@ async function assignJob(id) {
     if (!response.ok) throw new Error('Failed to assign');
     fetchAppointments();
   } catch (error) {
-    alert('Error: ' + error.message);
+    showToast('Error: ' + error.message);
   }
 }
 
@@ -88,7 +155,7 @@ async function updateStatus(id, newStatus) {
     if (!response.ok) throw new Error('Failed to update status');
     fetchAppointments();
   } catch (error) {
-    alert('Error: ' + error.message);
+    showToast('Error: ' + error.message);
   }
 }
 
@@ -97,7 +164,7 @@ async function deleteJob(id, action) {
     ? 'Mark job as completed and remove?'
     : 'Permanently delete this job?';
   
-  const confirmed = confirm(msg); // Reverted to confirm()
+  const confirmed = await showConfirmation(msg);
 
   if (confirmed) {
     try {
@@ -107,7 +174,7 @@ async function deleteJob(id, action) {
       if (!response.ok) throw new Error('Failed to delete');
       fetchAppointments();
     } catch (error) {
-      alert('Error: ' + error.message);
+      showToast('Error: ' + error.message);
     }
   }
 }
@@ -118,7 +185,7 @@ async function confirmAppointment(id) {
   const confirmedDate = dateInput.value;
   
   if (!confirmedDate) {
-    alert('Please select a date and time.'); // Reverted to alert()
+    showToast('Please select a date and time.', false); // Use non-error toast
     return;
   }
 
@@ -138,7 +205,7 @@ async function confirmAppointment(id) {
     if (!response.ok) throw new Error('Failed to confirm/reschedule');
     fetchAppointments();
   } catch (error) {
-    alert('Error: ' + error.message);
+    showToast('Error: ' + error.message);
   }
 }
 
@@ -400,23 +467,24 @@ const fetchAppointments = async () => {
 
     const response = await fetch('/api/schedule', { headers });
     
-    // --- UPDATED 401 Handling to use prompt() ---
+    // --- UPDATED 401 Handling ---
     if (response.status === 401) {
-      sessionStorage.removeItem('admin_pass'); // Clear bad/expired password
-      const newPass = prompt("Login Required. Please enter the password:");
-      
-      if (newPass) { // If user entered a password and clicked OK
-          sessionStorage.setItem('admin_pass', newPass);
-          fetchAppointments(); // Retry the fetch
-      } else { // If user clicked Cancel
-          loading.style.display = 'none';
-          wipList.innerHTML = '<p class="text-red-600 text-center card p-6">Authentication cancelled. Please refresh to try again.</p>';
+      sessionStorage.removeItem('admin_pass'); // Clear bad password
+      if (pass) { // Only show error if a password was *just* tried
+          passwordError.textContent = 'Login failed. Please try again.';
+          passwordError.classList.remove('hidden');
       }
-      return; // Stop this function execution
+      loading.style.display = 'none';
+      passwordModal.showModal(); // Show login modal
+      return; // Stop execution
     }
     // --- End of 401 Handling ---
 
     if (!response.ok) throw new Error('Failed to fetch data');
+    
+    // If we get here, login was successful
+    passwordModal.close(); // Close modal if it was open
+    passwordError.classList.add('hidden'); // Hide error
     
     allAppointments = await response.json(); // Save to global cache
     loading.style.display = 'none'; 
@@ -551,7 +619,7 @@ const fetchAppointments = async () => {
 
   } catch (error) {
     loading.style.display = 'none';
-    alert(`Error loading appointments: ${error.message}`); // Reverted
+    showToast(`Error loading appointments: ${error.message}`);
     console.error(error);
   }
 };
@@ -620,7 +688,26 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTabSwitcher(mainTabNav, mainPanels);
   setupTabSwitcher(subTabNav, subPanels);
   
-  // --- REMOVED Password Modal Listeners ---
+  // --- NEW Password Login Logic ---
+  async function handleLoginAttempt() {
+    const pass = passwordInput.value;
+    if (!pass) return;
+    
+    passwordError.classList.add('hidden'); // Hide error on new attempt
+    sessionStorage.setItem('admin_pass', pass);
+    passwordInput.value = ''; // Clear input
+    await fetchAppointments(); // Re-try fetching
+  }
+  
+  passwordSubmitBtn.addEventListener('click', handleLoginAttempt);
+  // Also allow pressing Enter
+  passwordInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault(); // Prevent form submission
+      handleLoginAttempt();
+    }
+  });
+  // --- End of Password Logic ---
 
   fetchAppointments(); // Initial fetch
   refreshBtn.addEventListener('click', fetchAppointments);
