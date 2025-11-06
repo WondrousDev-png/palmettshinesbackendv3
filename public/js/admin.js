@@ -2,6 +2,8 @@
   This file contains the complete application logic.
   It uses prompt() for password, and alert()/confirm() for
   notifications, and includes the mobile-first calendar logic.
+  
+  IT ALSO INCLUDES console.log() STATEMENTS FOR DEBUGGING.
 */
 
 // --- Global Elements ---
@@ -379,6 +381,8 @@ function renderTodaySummary(appointments) {
 
 // --- Main Fetch and Render Function ---
 const fetchAppointments = async () => {
+  console.log('--- fetchAppointments started ---'); // 1. Check if function is running
+
   // 1. Clear all lists and show loading
   loading.style.display = 'block';
   wipList.innerHTML = '';
@@ -393,13 +397,15 @@ const fetchAppointments = async () => {
     const headers = { 'Content-Type': 'application/json' };
     const pass = sessionStorage.getItem('admin_pass');
     if (pass) {
-      // We assume Basic Auth with a static username 'admin'
       // The server-side must be set up to accept this
       headers['Authorization'] = 'Basic ' + btoa('admin:' + pass);
     }
+    console.log('Sending request with headers:', headers); // 2. Check headers
 
     const response = await fetch('/api/schedule', { headers });
     
+    console.log('Received response:', response); // 3. Check the raw response object
+
     // --- UPDATED 401 Handling to use prompt() ---
     if (response.status === 401) {
       sessionStorage.removeItem('admin_pass'); // Clear bad/expired password
@@ -416,9 +422,36 @@ const fetchAppointments = async () => {
     }
     // --- End of 401 Handling ---
 
-    if (!response.ok) throw new Error('Failed to fetch data');
+    if (!response.ok) {
+      // 4. More detailed error logging
+      console.error('Response was not OK. Status:', response.status, response.statusText);
+      // Try to get text from the response body if it's not JSON
+      const errorText = await response.text();
+      console.error('Error response body:', errorText);
+      throw new Error(`Failed to fetch data (${response.status})`);
+    }
     
-    allAppointments = await response.json(); // Save to global cache
+    // 5. Check if content type is JSON
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      console.warn(`Got contentType: ${contentType}. Expected application/json.`);
+      // We'll still try to parse it, but this is a red flag.
+    }
+    
+    // Clone the response so we can read it twice if needed
+    const responseClone = response.clone();
+
+    try {
+      allAppointments = await response.json(); // Save to global cache
+    } catch (jsonError) {
+      console.error('Failed to parse response as JSON:', jsonError);
+      // If JSON fails, log the raw text
+      const rawText = await responseClone.text();
+      console.error('Raw response text:', rawText);
+      throw new Error('Server did not return valid JSON.');
+    }
+    
+    console.log('Appointments data received:', allAppointments); // 6. CRITICAL: Check the data
     loading.style.display = 'none'; 
 
     // 2. Create local arrays for each category
@@ -552,7 +585,7 @@ const fetchAppointments = async () => {
   } catch (error) {
     loading.style.display = 'none';
     alert(`Error loading appointments: ${error.message}`); // Reverted
-    console.error(error);
+    console.error('Error in fetchAppointments catch block:', error); // 7. Check catch block
   }
 };
 
