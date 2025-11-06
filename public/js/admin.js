@@ -63,6 +63,12 @@ const confirmMessage = document.getElementById('confirm-message');
 const confirmBtnOk = document.getElementById('confirm-btn-ok');
 const confirmBtnCancel = document.getElementById('confirm-btn-cancel');
 
+// --- NEW Password Modal Elements ---
+const passwordModal = document.getElementById('password-modal');
+const passwordInput = document.getElementById('password-input');
+const passwordSubmitBtn = document.getElementById('password-submit-btn');
+const passwordError = document.getElementById('password-error');
+
 // --- NEW: Custom Notification Functions ---
 
 /**
@@ -450,13 +456,35 @@ const fetchAppointments = async () => {
   [wipEmpty, confirmedEmpty, scheduleEmpty, questionEmpty].forEach(el => el.style.display = 'none');
 
   try {
-    const response = await fetch('/api/schedule');
-    if (response.status === 401) {
-      loading.style.display = 'none';
-      showToast('Error: Unauthorized. Please refresh and log in.');
-      return;
+    // --- UPDATED to add Authorization ---
+    const headers = { 'Content-Type': 'application/json' };
+    const pass = sessionStorage.getItem('admin_pass');
+    if (pass) {
+      // We assume Basic Auth with a static username 'admin'
+      // The server-side must be set up to accept this
+      headers['Authorization'] = 'Basic ' + btoa('admin:' + pass);
     }
+
+    const response = await fetch('/api/schedule', { headers });
+    
+    // --- UPDATED 401 Handling ---
+    if (response.status === 401) {
+      sessionStorage.removeItem('admin_pass'); // Clear bad password
+      if (pass) { // Only show error if a password was *just* tried
+          passwordError.textContent = 'Login failed. Please try again.';
+          passwordError.classList.remove('hidden');
+      }
+      loading.style.display = 'none';
+      passwordModal.showModal(); // Show login modal
+      return; // Stop execution
+    }
+    // --- End of 401 Handling ---
+
     if (!response.ok) throw new Error('Failed to fetch data');
+    
+    // If we get here, login was successful
+    passwordModal.close(); // Close modal if it was open
+    passwordError.classList.add('hidden'); // Hide error
     
     allAppointments = await response.json(); // Save to global cache
     loading.style.display = 'none'; 
@@ -659,7 +687,29 @@ function setupTabSwitcher(nav, panels) {
 document.addEventListener('DOMContentLoaded', () => {
   setupTabSwitcher(mainTabNav, mainPanels);
   setupTabSwitcher(subTabNav, subPanels);
-  fetchAppointments();
+  
+  // --- NEW Password Login Logic ---
+  async function handleLoginAttempt() {
+    const pass = passwordInput.value;
+    if (!pass) return;
+    
+    passwordError.classList.add('hidden'); // Hide error on new attempt
+    sessionStorage.setItem('admin_pass', pass);
+    passwordInput.value = ''; // Clear input
+    await fetchAppointments(); // Re-try fetching
+  }
+  
+  passwordSubmitBtn.addEventListener('click', handleLoginAttempt);
+  // Also allow pressing Enter
+  passwordInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault(); // Prevent form submission
+      handleLoginAttempt();
+    }
+  });
+  // --- End of Password Logic ---
+
+  fetchAppointments(); // Initial fetch
   refreshBtn.addEventListener('click', fetchAppointments);
 
   // --- Modal close listeners ---
