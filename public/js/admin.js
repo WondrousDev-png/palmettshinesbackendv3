@@ -1,3 +1,9 @@
+/*
+  This file contains the complete application logic.
+  It replaces alert() and confirm() with non-blocking
+  UI elements and includes the mobile-first calendar logic.
+*/
+
 // --- Global Elements ---
 const loading = document.getElementById('loading');
 const refreshBtn = document.getElementById('refresh-btn');
@@ -48,8 +54,71 @@ const todaySummaryContainer = document.getElementById('today-summary-container')
 const todaySummaryList = document.getElementById('today-summary-list');
 const todaySummaryEmpty = document.getElementById('today-summary-empty');
 
+// --- NEW Notification & Confirmation Elements ---
+const toastEl = document.getElementById('toast-notification');
+const toastMessage = document.getElementById('toast-message');
+const confirmModal = document.getElementById('confirm-modal');
+const confirmTitle = document.getElementById('confirm-title');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmBtnOk = document.getElementById('confirm-btn-ok');
+const confirmBtnCancel = document.getElementById('confirm-btn-cancel');
 
-// --- API Call Functions ---
+// --- NEW: Custom Notification Functions ---
+
+/**
+ * Shows a toast notification.
+ * @param {string} message The message to display.
+ * @param {boolean} [isError=true] If true, shows a red error toast. If false, shows a blue info toast.
+ */
+function showToast(message, isError = true) {
+  toastMessage.textContent = message;
+  
+  if (isError) {
+    toastEl.classList.remove('bg-blue-600');
+    toastEl.classList.add('bg-red-600');
+  } else {
+    toastEl.classList.remove('bg-red-600');
+    toastEl.classList.add('bg-blue-600');
+  }
+  
+  toastEl.classList.remove('hidden');
+  setTimeout(() => {
+    toastEl.classList.add('hidden');
+  }, 3000); // Hide after 3 seconds
+}
+
+/**
+ * Shows a confirmation modal.
+ * @param {string} message The message for the confirmation.
+ * @param {string} title The title for the modal.
+ * @returns {Promise<boolean>} A promise that resolves to true if OK, false if Cancel.
+ */
+function showConfirmation(message, title = 'Are you sure?') {
+  confirmTitle.textContent = title;
+  confirmMessage.textContent = message;
+  confirmModal.showModal();
+
+  return new Promise((resolve) => {
+    // Remove old listeners to prevent duplicates
+    const newOkBtn = confirmBtnOk.cloneNode(true);
+    const newCancelBtn = confirmBtnCancel.cloneNode(true);
+    confirmBtnOk.parentNode.replaceChild(newOkBtn, confirmBtnOk);
+    confirmBtnCancel.parentNode.replaceChild(newCancelBtn, confirmBtnCancel);
+    
+    // Add new listeners
+    newOkBtn.addEventListener('click', () => {
+      confirmModal.close();
+      resolve(true);
+    });
+    newCancelBtn.addEventListener('click', () => {
+      confirmModal.close();
+      resolve(false);
+    });
+  });
+}
+
+
+// --- API Call Functions (Updated) ---
 
 async function assignJob(id) {
   // This function is for *just* saving assignments
@@ -66,7 +135,7 @@ async function assignJob(id) {
     if (!response.ok) throw new Error('Failed to assign');
     fetchAppointments();
   } catch (error) {
-    alert('Error: ' + error.message);
+    showToast('Error: ' + error.message);
   }
 }
 
@@ -80,7 +149,7 @@ async function updateStatus(id, newStatus) {
     if (!response.ok) throw new Error('Failed to update status');
     fetchAppointments();
   } catch (error) {
-    alert('Error: ' + error.message);
+    showToast('Error: ' + error.message);
   }
 }
 
@@ -89,7 +158,9 @@ async function deleteJob(id, action) {
     ? 'Mark job as completed and remove?'
     : 'Permanently delete this job?';
   
-  if (confirm(msg)) {
+  const confirmed = await showConfirmation(msg);
+
+  if (confirmed) {
     try {
       const response = await fetch(`/api/schedule/${id}`, {
         method: 'DELETE'
@@ -97,7 +168,7 @@ async function deleteJob(id, action) {
       if (!response.ok) throw new Error('Failed to delete');
       fetchAppointments();
     } catch (error) {
-      alert('Error: ' + error.message);
+      showToast('Error: ' + error.message);
     }
   }
 }
@@ -108,7 +179,7 @@ async function confirmAppointment(id) {
   const confirmedDate = dateInput.value;
   
   if (!confirmedDate) {
-    alert('Please select a date and time.'); 
+    showToast('Please select a date and time.', false); // Use non-error toast
     return;
   }
 
@@ -128,7 +199,7 @@ async function confirmAppointment(id) {
     if (!response.ok) throw new Error('Failed to confirm/reschedule');
     fetchAppointments();
   } catch (error) {
-    alert('Error: ' + error.message);
+    showToast('Error: ' + error.message);
   }
 }
 
@@ -382,7 +453,7 @@ const fetchAppointments = async () => {
     const response = await fetch('/api/schedule');
     if (response.status === 401) {
       loading.style.display = 'none';
-      wipList.innerHTML = '<p class="text-red-600 text-center card p-6">Error: Unauthorized. Please refresh and log in.</p>';
+      showToast('Error: Unauthorized. Please refresh and log in.');
       return;
     }
     if (!response.ok) throw new Error('Failed to fetch data');
@@ -467,17 +538,39 @@ const fetchAppointments = async () => {
     // 8. Update "New Requests" main tab count
     newCount.textContent = scheduleJobs.length + questionJobs.length;
 
-    // 9. Render Calendar
+    // 9. Render Calendar (NOW MOBILE-FIRST)
     if (calendar) {
       calendar.destroy(); 
     }
+    
+    // Check if the current window is narrow (likely a phone in vertical mode)
+    const isMobile = window.innerWidth < 640; // Tailwind's 'sm' breakpoint
+
     calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'dayGridMonth',
+      // Set mobile-friendly list view as default on small screens
+      initialView: isMobile ? 'listWeek' : 'dayGridMonth',
+      
       headerToolbar: {
         left: 'prev,next today',
         center: 'title',
-        right: 'dayGridMonth,timeGridWeek'
+        // Show fewer view options on mobile
+        right: isMobile ? 'listWeek,dayGridMonth' : 'dayGridMonth,timeGridWeek,listWeek'
       },
+      
+      // Add an event listener to dynamically change view on resize (e.g., phone rotation)
+      windowResize: function(arg) {
+        const currentIsMobile = window.innerWidth < 640;
+        // If we're now on mobile and in a grid view, switch to list
+        if (currentIsMobile && (arg.view.type === 'dayGridMonth' || arg.view.type === 'timeGridWeek')) {
+          calendar.changeView('listWeek');
+        } 
+        // If we're now on desktop and in list view, switch to month
+        else if (!currentIsMobile && arg.view.type === 'listWeek') {
+          calendar.changeView('dayGridMonth');
+        }
+      },
+      
+      // --- Your existing calendar options ---
       events: calendarEvents,
       editable: false, 
       dayMaxEvents: true, 
@@ -490,11 +583,15 @@ const fetchAppointments = async () => {
         handleDateClick(arg.date);
       }
     });
-    calendar.render();
+    
+    // Render only if the calendar panel is active
+    if (document.getElementById('panel-calendar').classList.contains('active')) {
+      calendar.render();
+    }
 
   } catch (error) {
     loading.style.display = 'none';
-    wipList.innerHTML = `<p class="text-red-600 text-center card p-6">Error loading appointments: ${error.message}</p>`;
+    showToast(`Error loading appointments: ${error.message}`);
     console.error(error);
   }
 };
@@ -517,7 +614,7 @@ function handleDateClick(date) {
   // 3. Populate the modal list
   summaryList.innerHTML = ''; // Clear old list
   if (eventsForDay.length === 0) {
-    summaryList.innerHTML = '<li>No scheduled jobs for this day.</li>';
+    summaryList.innerHTML = '<li class="text-gray-500 text-center">No scheduled jobs for this day.</li>';
   } else {
     // Sort by time
     eventsForDay.sort((a, b) => new Date(a.confirmedDate) - new Date(b.confirmedDate));
@@ -527,7 +624,9 @@ function handleDateClick(date) {
       const teamString = appt.assignedTo.length ? ` (${appt.assignedTo.join(', ')})` : '';
       
       const li = document.createElement('li');
-      li.innerHTML = `<strong>${time} - ${appt.name}${teamString}</strong>${appt.car || appt.subject}`;
+      li.className = 'p-3 bg-gray-50 rounded-md text-gray-700';
+      li.innerHTML = `<strong>${time} - ${appt.name}${teamString}</strong>
+                      <span class="block text-sm text-gray-600">${appt.car || appt.subject}</span>`;
       summaryList.appendChild(li);
     });
   }
@@ -551,7 +650,7 @@ function setupTabSwitcher(nav, panels) {
     panel.classList.add('active');
 
     if (tabName === 'calendar' && calendar) {
-      setTimeout(() => calendar.render(), 0);
+      setTimeout(() => calendar.render(), 0); // Render on next tick
     }
   });
 }
@@ -566,7 +665,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Modal close listeners ---
   modalCloseBtn.addEventListener('click', () => summaryModal.close());
   summaryModal.addEventListener('click', (e) => {
-    if (e.target === summaryModal) {
+    const dialogDimensions = summaryModal.getBoundingClientRect();
+    if (
+      e.clientX < dialogDimensions.left ||
+      e.clientX > dialogDimensions.right ||
+      e.clientY < dialogDimensions.top ||
+      e.clientY > dialogDimensions.bottom
+    ) {
       summaryModal.close();
     }
   });
